@@ -11,6 +11,7 @@
 #include "learning/Scheduler.h"
 
 #include <QElapsedTimer>
+#include <QSet>
 #include <QWidget>
 
 #include <optional>
@@ -51,6 +52,14 @@ public:
 
     /// Questions of the official examination and its time limit in minutes.
     bool startExam();
+
+    /// Restricts the simulated exam to the chosen parts.
+    ///
+    /// The Amtsblatt-Verfügung only allows V+B+N, V+B+N+E and all five parts.
+    /// An empty set means "all parts", which is what a learner gets who never
+    /// used the start assistant.
+    void setSelectedParts(const QSet<int> &parts);
+    QSet<int> selectedParts() const { return m_selectedParts; }
     /// A training paper of the given length, without pass marks.
     bool startTraining(int questionCount);
 
@@ -95,6 +104,7 @@ private:
 
     QPushButton *m_startExam = nullptr;
     QPushButton *m_startTraining = nullptr;
+    QSet<int> m_selectedParts;
     QPushButton *m_back = nullptr;
     QPushButton *m_next = nullptr;
     QPushButton *m_finish = nullptr;

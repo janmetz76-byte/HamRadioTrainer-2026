@@ -331,7 +331,7 @@ notwendig ist.
 
 ## Entwicklungstand
 
-Stand: alle 144 Tests in 12 Programmen sind grün. Die Anwendung ist
+Stand: alle 151 Tests in 13 Programmen sind grün. Die Anwendung ist
 funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
 und die Veröffentlichung.
 
@@ -475,6 +475,23 @@ Beides gehört in die Anzeige der Anwendung.
 
 DL-DE-BY-2.0 und GPL-3.0 stehen nicht im Widerspruch: Die Namensnennungsplicht
 bindet den Fragentext, nicht den Anwendungscode.
+
+## Startassistent
+
+Beim ersten Start fragt ein Einrichtungsassistent nach der Prüfung, den
+Prüfungsteilen und – freiwillig – dem Prüfungstermin. Das Vorbild ist der
+Konfigurations-Assistent des Originals von 2015, der dasselbe fragte.
+
+Angeboten sind nur die Kombinationen, die es nach Amtsblatt-Verfügung
+29/2024 tatsächlich gibt: V+B+N, V+B+N+E und alle fünf Prüfungsteile. Die
+gewählten Teile bestimmen, welche Teile in die Prüfungssimulation
+aufgenommen werden.
+
+Der Termin wird nur angezeigt, etwa als Countdown in der Statuszeile. Er
+ändert nicht, welche Fragen gestellt werden – dafür gibt es keine
+belastbare Grundlage, und eine scheinbar kluge Berechnung wäre schlimmer
+als gar keine. Über *Datei ▸ Einrichtungsassistent* lässt sich die Auswahl
+jederzeit ändern.
 
 ## Bauen und Verteilen
 

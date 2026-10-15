@@ -12,6 +12,7 @@
 #include "exam/ExamSession.h"
 #include "learning/ProgressStore.h"
 
+#include <QDate>
 #include <QMainWindow>
 #include <QVector>
 
@@ -50,6 +51,8 @@ public:
     /// installed. A packaged program must not ask for a catalog on every
     /// start.
     void openInitialCatalog();
+    void runStartupAssistant();
+    void updateExamCountdown();
 
 private:
     void loadProgress();
@@ -74,6 +77,8 @@ private:
     QButtonGroup *m_viewGroup = nullptr;
     QStackedWidget *m_viewStack = nullptr;
     QLabel *m_status = nullptr;
+    QLabel *m_examDateLabel = nullptr;
+    QDate m_examDate;
     QDockWidget *m_reportDock = nullptr;
     ValidationReport *m_report = nullptr;
 };

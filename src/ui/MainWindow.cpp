@@ -8,6 +8,7 @@
 #include "MainWindow.h"
 
 #include "CatalogView.h"
+#include "StartupDialog.h"
 #include "ValidationReport.h"
 
 #include "core/CatalogValidator.h"
@@ -124,6 +125,17 @@ void MainWindow::buildUi()
     connect(quitAction, &QAction::triggered, this, &QWidget::close);
 
     QMenu *fileMenu = menuBar()->addMenu(tr("&Datei"));
+    // Der Assistent ist nicht nur beim ersten Start nuetzlich: Wer sich
+    // zwischenzeitlich fuer eine andere Klasse entscheidet, oeffnet ihn ueber
+    // das Menue erneut.
+    auto *assistantAction = new QAction(tr("&Einrichtungsassistent…"), this);
+    connect(assistantAction, &QAction::triggered, this, [this] {
+        QSettings settings;
+        settings.setValue(QStringLiteral("startup/done"), false);
+        runStartupAssistant();
+    });
+    fileMenu->addAction(assistantAction);
+    fileMenu->addSeparator();
     fileMenu->addAction(openAction);
     fileMenu->addAction(reloadAction);
     fileMenu->addSeparator();
@@ -197,6 +209,9 @@ void MainWindow::buildUi()
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
     statusBar()->addWidget(m_status, 1);
+    m_examDateLabel = new QLabel(this);
+    statusBar()->addPermanentWidget(m_examDateLabel);
+    updateExamCountdown();
 
     // Der Pruefbericht ist ein andockbares Panel und kein Dialog: die
     // mitgelieferten Kataloge erzeugen mehrere hundert Hinweise, die den
@@ -333,12 +348,70 @@ void MainWindow::rememberCatalog(const QString &path)
     settings.setValue(QStringLiteral("catalog/lastPath"), path);
 }
 
+void MainWindow::runStartupAssistant()
+{
+    // Der Startassistent laeuft nur beim ersten Start. Danach ist die Wahl
+    // gemerkt und der Weg in die Anwendung fuehrt direkt zur Arbeit.
+    QSettings settings;
+    if (settings.value(QStringLiteral("startup/done")).toBool())
+        return;
+
+    const CatalogLocator::Result located = CatalogLocator::locate();
+    if (located.paths.isEmpty())
+        return;
+
+    StartupDialog dialog(located.paths, this);
+    if (dialog.exec() != QDialog::Accepted || !dialog.result().accepted)
+        return;
+
+    const StartupDialog::Result chosen = dialog.result();
+    settings.setValue(QStringLiteral("startup/done"), true);
+    settings.setValue(QStringLiteral("startup/examDate"), chosen.examDate);
+    QVariantList parts;
+    for (int part : chosen.selectedParts)
+        parts.append(part);
+    settings.setValue(QStringLiteral("startup/parts"), parts);
+
+    if (!chosen.catalogPath.isEmpty() && chosen.catalogPath != m_catalogPath)
+        openCatalog(chosen.catalogPath);
+    m_exam->setSelectedParts(chosen.selectedParts);
+    updateExamCountdown();
+}
+
+void MainWindow::updateExamCountdown()
+{
+    const QDate date = m_examDate;
+    if (!date.isValid()) {
+        m_examDateLabel->setText(tr("Kein Prüfungstermin hinterlegt"));
+        return;
+    }
+    const qint64 days = QDate::currentDate().daysTo(date);
+    if (days < 0)
+        m_examDateLabel->setText(tr("Prüfungstermin war am %1").arg(date.toString(Qt::ISODate)));
+    else if (days == 0)
+        m_examDateLabel->setText(tr("Heute ist Prüfungstag"));
+    else
+        m_examDateLabel->setText(tr("Noch %1 Tage bis zur Prüfung").arg(days));
+}
+
 void MainWindow::openInitialCatalog()
 {
     // The catalog of last use, as long as it is still there. A hand edited
     // catalog keeps its path, so the learner's own questions are not lost.
     QSettings settings;
     const QString last = settings.value(QStringLiteral("catalog/lastPath")).toString();
+    // Von einem vorherigen Start bekannte Auswahl uebernehmen, bevor der
+    // Assistent neu fragt.
+    m_examDate = settings.value(QStringLiteral("startup/examDate")).toDate();
+    const QVariantList storedParts = settings.value(QStringLiteral("startup/parts")).toList();
+    if (!storedParts.isEmpty()) {
+        QSet<int> parts;
+        for (const QVariant &value : storedParts)
+            parts.insert(value.toInt());
+        m_exam->setSelectedParts(parts);
+    }
+    updateExamCountdown();
+
     if (!last.isEmpty() && QFileInfo::exists(last) && openCatalog(last))
         return;
 
@@ -348,6 +421,9 @@ void MainWindow::openInitialCatalog()
         return;
     }
     openCatalog(located.paths.first());
+
+    // Der Assistent braucht die Katalogauswahl, also laeuft er danach.
+    runStartupAssistant();
 }
 
 bool MainWindow::openCatalog(const QString &path)

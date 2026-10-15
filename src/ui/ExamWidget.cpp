@@ -169,6 +169,11 @@ void ExamWidget::setProgress(const QVector<QuestionState> &states)
     m_scheduler = Scheduler(states);
 }
 
+void ExamWidget::setSelectedParts(const QSet<int> &parts)
+{
+    m_selectedParts = parts;
+}
+
 void ExamWidget::clearProgress()
 {
     m_scheduler.reset();
@@ -178,15 +183,24 @@ bool ExamWidget::startExam()
 {
     if (!m_catalog)
         return false;
-    const PaperBuilder::Options options = PaperBuilder::examOptions(*m_catalog);
+    PaperBuilder::Options options = PaperBuilder::examOptions(*m_catalog);
+    // Nicht gewaehlte Teile bekommen keine Fragen. Damit entfaellt der ganze
+    // Teil aus der Pruefung, statt mit einer leeren Seite durchzufallen.
+    if (!m_selectedParts.isEmpty()) {
+        for (int i = 0; i < options.questionsPerPart.size(); ++i) {
+            if (!m_selectedParts.contains(i))
+                options.questionsPerPart[i] = 0;
+        }
+    }
     if (options.questionsPerPart.size() != m_catalog->parts.size()) {
         QMessageBox::warning(this, tr("Keine Prüfung möglich"),
                              tr("Der Katalog deklariert keinen Prüfungsumfang. Bitte einen "
                                 "Katalog der Klassen N, E oder A öffnen."));
         return false;
     }
-    for (int questions : options.questionsPerPart) {
-        if (questions <= 0) {
+    for (int i = 0; i < options.questionsPerPart.size(); ++i) {
+        const int questions = options.questionsPerPart.at(i);
+        if (questions < 0) {
             QMessageBox::warning(this, tr("Keine Prüfung möglich"),
                                  tr("Mindestens ein Prüfungsteil deklariert keine Fragenanzahl."));
             return false;
