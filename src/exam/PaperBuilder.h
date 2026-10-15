@@ -29,6 +29,10 @@ struct PaperQuestion
     QString questionId;
     /// Indices into Question::answers, in presentation order.
     QVector<int> answerOrder;
+    /// Prüfungsteil the question was drawn for. Empty in training mode.
+    QString partId;
+    /// Letter of that Prüfungsteil, e.g. "V". Empty in training mode.
+    QString partLetter;
 };
 
 /// One Prüfungsteil of a generated paper, with the limits that apply to it.

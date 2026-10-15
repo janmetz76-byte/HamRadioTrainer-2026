@@ -26,7 +26,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Xml)
-find_package(Qt6 6.5 QUIET OPTIONAL_COMPONENTS Test)
+find_package(Qt6 6.5 QUIET OPTIONAL_COMPONENTS Test Svg)
 
 qt_standard_project_setup()
 
@@ -36,7 +36,8 @@ add_library(hrt_core STATIC
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
     src/learning/Scheduler.cpp
-    src/exam/PaperBuilder.cpp)
+    src/exam/PaperBuilder.cpp
+    src/exam/ExamSession.cpp)
 
 target_include_directories(hrt_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(hrt_core PUBLIC Qt6::Core Qt6::Xml)
@@ -44,11 +45,26 @@ target_compile_definitions(hrt_core PUBLIC
     QT_DISABLE_DEPRECATED_BEFORE=0x060000
     HRT_VERSION_STRING="${PROJECT_VERSION}")
 
+# The user interface is a library of its own so that the widget tests can link
+# the very same code the application runs.
+add_library(hrt_ui STATIC
+    src/ui/ExamWidget.cpp
+    src/ui/ImageLoader.cpp)
+
+target_include_directories(hrt_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
+target_link_libraries(hrt_ui PUBLIC hrt_core Qt6::Widgets Qt6::Gui)
+if(TARGET Qt6::Svg)
+    # Question and answer images are SVG in the BNetzA source, so a raster
+    # fallback would show nothing at all.
+    target_link_libraries(hrt_ui PUBLIC Qt6::Svg)
+    target_compile_definitions(hrt_ui PUBLIC HRT_HAVE_SVG)
+endif()
+
 add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/ui/MainWindow.cpp)
 
-target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_core Qt6::Widgets Qt6::Gui)
+target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 
 if(MSVC)
     target_compile_options(HamRadioTrainer2026 PRIVATE /W4 /permissive-)
@@ -97,6 +113,24 @@ if(Qt6Test_FOUND)
     target_compile_definitions(tst_scheduler PRIVATE
         HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME scheduler COMMAND tst_scheduler)
+
+    if(TARGET Qt6::Widgets)
+        foreach(widget_test tst_examwidget tst_imageloader)
+            add_executable(${widget_test} tests/${widget_test}.cpp)
+            target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
+            target_compile_definitions(${widget_test} PRIVATE
+                HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+            add_test(NAME ${widget_test} COMMAND ${widget_test})
+            set_tests_properties(${widget_test} PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        endforeach()
+    endif()
+
+    add_executable(tst_exam tests/tst_exam.cpp)
+    target_link_libraries(tst_exam PRIVATE hrt_core Qt6::Test)
+    target_compile_definitions(tst_exam PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME exam COMMAND tst_exam)
 endif()
 
 # ---------------------------------------------------------------------------

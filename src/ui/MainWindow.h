@@ -15,15 +15,19 @@
 
 class QLabel;
 class QPlainTextEdit;
+class QTabWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 
 namespace hrt {
+class ExamWidget;
+} // namespace hrt
 
-/// Shell of HamRadioTrainer 2026. At this stage the application is a catalog
-/// browser: it opens plain XML question catalogs, validates them and shows
-/// their structure. Learning, exam simulation and statistics build on top of
-/// this.
+namespace hrt {
+
+/// Shell of HamRadioTrainer 2026. It opens plain XML question catalogs,
+/// validates them and shows their structure in the catalog tab, and drives the
+/// examination in the exam tab. Learning statistics build on top of this.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -43,6 +47,8 @@ private:
 
     Catalog m_catalog;
     QString m_catalogPath;
+    QTabWidget *m_tabs = nullptr;
+    ExamWidget *m_exam = nullptr;
     QTreeWidget *m_tree = nullptr;
     QPlainTextEdit *m_details = nullptr;
     QLabel *m_status = nullptr;

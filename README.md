@@ -329,26 +329,32 @@ Eine Prüfungssimulation kann die Fragen je Prüfungsteil als Quote vorgeben
 (`Options::questionsPerPart`), was für Klasse N mit ihren drei Prüfungsteilen
 notwendig ist.
 
-## Entwicklungsstand
+## Entwicklungstand
 
 Erledigt:
 
 * Katalogformat als Klartext-XML mit Schema
 * Datenmodell, XML-Leser, XML-Schreiber, semantischer Validator
-* Testsuite (13 Tests) und Kommandozeilenwerkzeug
+* Kommandozeilenwerkzeuge `hrt-catalog-tool` und `hrt-catalog-import`
 * Import des amtlichen BNetzA-Fragenkatalogs: 2502 katalogisierte Fragen für
-  N, E und A (571 / 839 / 1092) inklusive 687 Bildern, schemakonform geprüft
-* alle drei Prüfungsteile je Klasse, gemeinsame Teile als Pool modelliert
-* GitHub-Actions-Build für Linux und Windows 10/11
+  N, E und A (571 / 1034 / 1750) inklusive 687 Bildern, schemakonform geprüft
+* die fünf Prüfungsteile V, B, N, E, A mit Prüfungsumfang nach
+  Amtsblatt-Verfügung 29/2024
+* Lernlogik mit Leitner-Ordnern, Fälligkeit und Selbsteinschätzung
+* gewichtete Fragenauswahl ohne Ersetzung und immer gemischte Antwortreihenfolge
+* Prüfungssimulation: 25 Fragen je Teil, Bestehensschwelle 19 Punkte je Teil,
+  Zeitlimit 45 Minuten bzw. 60 Minuten für Klasse A, Auswertung je Prüfungsteil
+  mit Hinweis auf die mündliche Nachprüfung
+* Oberfläche mit Katalogbrowser und Prüfungsansicht, SVG-Frage- und
+  Antwortbildern, Rückmeldung an die Lernlogik
+* Testsuite (53 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
 
 Noch offen:
 
-* Lernlogik mit Leitner-Ordnern, Fälligkeit und Selbsteinschätzung
-* Prüfungssimulation mit gemischter Antwortreihenfolge und gewichteter Auswahl
-* Anbindung von Lernlogik und Simulation an die Oberfläche
+* Lernansicht mit Statistik und Fortschritt, Speicherung des Lernstands
 * Katalogpflege in der Anwendung
-* Ergänzung der Fehlerpunkte, die die Quelle nicht veröffentlicht
-* Darstellung der LaTeX-Formeln (KaTeX)
+* Darstellung der LaTeX-Formeln (219 Fragen der Klasse A)
+* mündliche Nachprüfung als eigener Prüfungsteil-Generator
 * Installer und Linux-Pakete (AppImage, Flatpak)
 
 ## Lizenz und Quellenvermerk

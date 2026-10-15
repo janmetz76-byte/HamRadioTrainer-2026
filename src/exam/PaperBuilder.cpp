@@ -214,6 +214,11 @@ ExamPaper PaperBuilder::build(const Catalog &catalog, const Scheduler &scheduler
         PaperQuestion entry;
         entry.questionId = pick.question->id;
         entry.answerOrder = shuffledAnswerOrder(*pick.question, seed, pick.question->id);
+        if (pick.partIndex >= 0) {
+            const Part &part = catalog.parts.at(pick.partIndex);
+            entry.partId = part.id;
+            entry.partLetter = partLetter(part);
+        }
         paper.questions.append(entry);
 
         const int points = pick.question->effectivePoints(catalog.metadata);

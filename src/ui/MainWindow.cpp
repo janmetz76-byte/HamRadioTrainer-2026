@@ -9,6 +9,7 @@
 
 #include "core/CatalogValidator.h"
 #include "core/CatalogXml.h"
+#include "ExamWidget.h"
 
 #include <QAction>
 #include <QFileDialog>
@@ -20,6 +21,7 @@
 #include <QPlainTextEdit>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QTabWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
@@ -112,7 +114,13 @@ void MainWindow::buildUi()
     splitter->addWidget(m_tree);
     splitter->addWidget(m_details);
     splitter->setStretchFactor(1, 1);
-    setCentralWidget(splitter);
+
+    m_exam = new ExamWidget(this);
+
+    m_tabs = new QTabWidget(this);
+    m_tabs->addTab(splitter, tr("Katalog"));
+    m_tabs->addTab(m_exam, tr("Prüfung"));
+    setCentralWidget(m_tabs);
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
     statusBar()->addWidget(m_status, 1);
@@ -133,6 +141,7 @@ bool MainWindow::openCatalog(const QString &path)
 
     m_catalog = catalog;
     m_catalogPath = path;
+    m_exam->setCatalog(&m_catalog, path);
     populateTree();
     updateStatus();
 
@@ -159,18 +168,24 @@ void MainWindow::populateTree()
         auto *partItem = new QTreeWidgetItem(m_tree);
         partItem->setText(0, part.title);
         partItem->setText(1, part.id);
-        partItem->setText(2, tr("Prüfungsteil"));
+        partItem->setText(
+            ColumnDetail,
+            tr("Prüfungsteil, %1 von %2 Fragen in der Prüfung, %3 im Katalog")
+                .arg(part.selection.questions)
+                .arg(part.selection.questions)
+                .arg(partAvailable(part)));
+        partItem->setText(ColumnKind,
+                          tr("bestanden ab %1 von %2 Punkten, %3 Fehlerpunkte zulässig, %4 min")
+                              .arg(part.selection.passScore.value_or(0))
+                              .arg(part.selection.questions)
+                              .arg(part.selection.errorPoints.value_or(0))
+                              .arg(part.selection.minutes.value_or(0)));
 
         for (const Section &section : part.sections) {
             auto *sectionItem = new QTreeWidgetItem(partItem);
             sectionItem->setText(0, section.title);
             sectionItem->setText(1, section.id);
             sectionItem->setText(2, tr("Abschnitt, %1 Fragen").arg(section.questions().size()));
-            sectionItem->setText(
-                1, tr("%1 · %2 Fragen Prüfungsteil, %3 verfügbar")
-                        .arg(section.id)
-                        .arg(part.selection.questions)
-                        .arg(part.selection.questions > 0 ? partAvailable(part) : 0));
 
             for (const Chapter &chapter : section.chapters) {
                 auto *chapterItem = new QTreeWidgetItem(sectionItem);
