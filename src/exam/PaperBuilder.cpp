@@ -7,6 +7,8 @@
 // any later version.
 #include "PaperBuilder.h"
 
+#include "core/Catalog.h"
+
 #include <algorithm>
 #include <numeric>
 
@@ -90,8 +92,7 @@ bool ExamPaper::isFullExam() const
 
 QString PaperBuilder::partLetter(const Part &part)
 {
-    const QString suffix = part.id.section(QLatin1Char('-'), -1);
-    return suffix.size() == 1 ? suffix.toUpper() : QString();
+    return examPartLetter(part);
 }
 
 PaperBuilder::Options PaperBuilder::examOptions(const Catalog &catalog)

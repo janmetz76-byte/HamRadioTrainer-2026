@@ -37,12 +37,7 @@ int ExamResult::weakestShortfall() const
 ExamSession::ExamSession(const Catalog &catalog, const ExamPaper &paper)
     : m_catalog(catalog), m_paper(paper)
 {
-    for (const Part &part : catalog.parts) {
-        for (const Section &section : part.sections) {
-            for (const Question *question : section.questions())
-                m_byId.insert(question->id, question);
-        }
-    }
+    m_byId = questionIndex(catalog);
 
     m_selected.assign(m_paper.questions.size(), -1);
 

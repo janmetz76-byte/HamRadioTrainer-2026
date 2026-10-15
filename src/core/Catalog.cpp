@@ -50,6 +50,25 @@ std::optional<TextFormat> textFormatFromString(const QString &value)
     return std::nullopt;
 }
 
+QHash<QString, const Question *> questionIndex(const Catalog &catalog)
+{
+    QHash<QString, const Question *> index;
+    index.reserve(catalog.totalQuestionCount());
+    for (const Part &part : catalog.parts) {
+        for (const Section &section : part.sections) {
+            for (const Question *question : section.questions())
+                index.insert(question->id, question);
+        }
+    }
+    return index;
+}
+
+QString examPartLetter(const Part &part)
+{
+    const QString suffix = part.id.section(QLatin1Char('-'), -1);
+    return suffix.size() == 1 ? suffix.toUpper() : QString();
+}
+
 int Question::effectivePoints(const CatalogMetadata &metadata) const
 {
     return points > 0 ? points : metadata.defaultPoints;

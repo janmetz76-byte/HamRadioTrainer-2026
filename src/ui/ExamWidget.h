@@ -15,8 +15,6 @@
 
 #include <optional>
 
-class QButtonGroup;
-class QCheckBox;
 class QLabel;
 class QPushButton;
 class QRadioButton;
@@ -24,6 +22,8 @@ class QTimer;
 class QVBoxLayout;
 
 namespace hrt {
+
+class AnswerView;
 
 /// The examination view.
 ///
@@ -74,8 +74,6 @@ private slots:
 
 private:
     void buildUi();
-    void clearQuestionArea();
-    void activateAnswerArea();
     void updateHeader();
     void updateNavigation();
     QPixmap renderImage(const QString &relativePath) const;
@@ -92,12 +90,8 @@ private:
 
     QLabel *m_header = nullptr;
     QLabel *m_timerLabel = nullptr;
-    QLabel *m_question = nullptr;
     QLabel *m_progress = nullptr;
-    QWidget *m_answerArea = nullptr;
-    QVBoxLayout *m_answerLayout = nullptr;
-    QButtonGroup *m_singleChoice = nullptr;
-    QVector<QCheckBox *> m_multipleChoice;
+    AnswerView *m_answers = nullptr;
 
     QPushButton *m_startExam = nullptr;
     QPushButton *m_startTraining = nullptr;

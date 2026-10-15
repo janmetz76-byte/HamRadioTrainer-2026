@@ -37,6 +37,8 @@ add_library(hrt_core STATIC
     src/core/CatalogValidator.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
+    src/learning/LearningStatistics.cpp
+    src/learning/StudySession.cpp
     src/exam/PaperBuilder.cpp
     src/exam/ExamSession.cpp)
 
@@ -49,8 +51,10 @@ target_compile_definitions(hrt_core PUBLIC
 # The user interface is a library of its own so that the widget tests can link
 # the very same code the application runs.
 add_library(hrt_ui STATIC
+    src/ui/AnswerView.cpp
     src/ui/ExamWidget.cpp
-    src/ui/ImageLoader.cpp)
+    src/ui/ImageLoader.cpp
+    src/ui/LearningWidget.cpp)
 
 target_include_directories(hrt_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 target_link_libraries(hrt_ui PUBLIC hrt_core Qt6::Widgets Qt6::Gui)
@@ -116,7 +120,7 @@ if(Qt6Test_FOUND)
     add_test(NAME scheduler COMMAND tst_scheduler)
 
     if(TARGET Qt6::Widgets)
-        foreach(widget_test tst_examwidget tst_imageloader)
+        foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget)
             add_executable(${widget_test} tests/${widget_test}.cpp)
             target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
             target_compile_definitions(${widget_test} PRIVATE
@@ -126,6 +130,10 @@ if(Qt6Test_FOUND)
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endforeach()
     endif()
+
+    add_executable(tst_learning tests/tst_learning.cpp)
+    target_link_libraries(tst_learning PRIVATE hrt_core Qt6::Test)
+    add_test(NAME learning COMMAND tst_learning)
 
     add_executable(tst_progress tests/tst_progress.cpp)
     target_link_libraries(tst_progress PRIVATE hrt_core Qt6::Test)

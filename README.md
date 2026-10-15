@@ -345,11 +345,13 @@ Erledigt:
 * Prüfungssimulation: 25 Fragen je Teil, Bestehensschwelle 19 Punkte je Teil,
   Zeitlimit 45 Minuten bzw. 60 Minuten für Klasse A, Auswertung je Prüfungsteil
   mit Hinweis auf die mündliche Nachprüfung
-* Oberfläche mit Katalogbrowser und Prüfungsansicht, SVG-Frage- und
-  Antwortbildern, Rückmeldung an die Lernlogik
+* Oberfläche mit Katalogbrowser, Lernansicht und Prüfungsansicht, SVG-Frage- und
+  Antwortbildern
+* Lernansicht: Stand je Prüfungsteil, Leitner-Verteilung, Übungsrunde über die
+  offenen Fragen mit Erhebung der Selbsteinschätzung
 * Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
   gebunden an den Prüfsummen-Abdruck der Katalogdatei
-* Testsuite (68 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Testsuite (97 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
 
 ### Lernfortschritt
 
@@ -373,9 +375,32 @@ Katalog nicht mehr gibt, werden beim Laden ebenfalls verworfen.
 
 Unter *Datei* lässt sich der Fortschritt bewusst zurücksetzen.
 
-Noch offen:
+### Lernen und Üben
 
-* Lernansicht mit Statistik und Fortschritt
+Der Tab *Lernen* zeigt den Stand und lädt zum Üben ein:
+
+* **Zusammenfassung** – beantwortete Fragen, Trefferquote, fällige Wiederholungen,
+  nie gesehene, wackelige und gefestigte Fragen
+* **Leitner-Verteilung** – wie viele beantwortete Fragen in welchem Ordner liegen
+* **Fortschritt je Prüfungsteil** – Fragen, beantwortet, gefestigt, wackelig und
+  Trefferquote für V, B, N, E und A
+* **Übungsrunde** – die schwachen Fragen zuerst, filterbar nach „nur fällige“,
+  „nur wackelige“ und Prüfungsteil
+
+Nach jeder Antwort fragt die Runde, **wie sicher die Antwort war**. Das ist der
+Punkt, an dem eine Prüfung nicht weiterkommt: eine Prüfung enthält keine
+Selbstauskunft und speichert deshalb ein neutrales Ergebnis. Erst die
+Übungsrunde erhebt sie, und damit sinkt eine richtig geratene Frage schneller
+zurück als eine sicher gewusste.
+
+Ohne Angabe fällt der Wert „unsicher“ an: die bereits gemeldete Selbsteinschätzung
+bleibt erhalten, statt überschrieben zu werden.
+
+Wird „nur fällige“ gewählt, kommen die fälligen Wiederholungen vor den noch nie
+gesehenen Fragen. Sonst würde eine kurze Runde vollständig aus neuen Fragen
+bestehen und das Filterziel verfehlt.
+
+Noch offen:
 * Katalogpflege in der Anwendung
 * Darstellung der LaTeX-Formeln (219 Fragen der Klasse A)
 * mündliche Nachprüfung als eigener Prüfungsteil-Generator

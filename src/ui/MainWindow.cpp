@@ -10,6 +10,7 @@
 #include "core/CatalogValidator.h"
 #include "core/CatalogXml.h"
 #include "ExamWidget.h"
+#include "LearningWidget.h"
 
 #include <QAbstractItemView>
 #include <QAction>
@@ -101,6 +102,7 @@ void MainWindow::buildUi()
         QString error;
         if (m_progressStore.clear(m_catalog, &error)) {
             m_exam->clearProgress();
+            m_learning->clearProgress();
             m_status->setText(tr("Lernfortschritt zurückgesetzt"));
         } else {
             QMessageBox::warning(this, tr("Zurücksetzen fehlgeschlagen"), error);
@@ -148,13 +150,16 @@ void MainWindow::buildUi()
     splitter->setStretchFactor(1, 1);
 
     m_exam = new ExamWidget(this);
+    m_learning = new LearningWidget(this);
 
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(splitter, tr("Katalog"));
+    m_tabs->addTab(m_learning, tr("Lernen"));
     m_tabs->addTab(m_exam, tr("Prüfung"));
     setCentralWidget(m_tabs);
 
     connect(m_exam, &ExamWidget::progressChanged, this, [this] { saveProgress(); });
+    connect(m_learning, &LearningWidget::progressChanged, this, [this] { saveProgress(); });
     connect(m_exam, &ExamWidget::examFinished, this, &MainWindow::showResult);
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
@@ -247,6 +252,7 @@ void MainWindow::loadProgress()
                "Der neue Fortschritt wird ab dem nächsten Training aufgebaut."));
         m_exam->clearProgress();
         m_exam->setProgress({});
+        m_learning->clearProgress();
         return;
     }
     if (loaded.droppedStates > 0) {
@@ -254,6 +260,7 @@ void MainWindow::loadProgress()
                               .arg(loaded.droppedStates));
     }
     m_exam->setProgress(loaded.states);
+    m_learning->setProgress(loaded.states);
 }
 
 void MainWindow::saveProgress()
@@ -281,6 +288,7 @@ bool MainWindow::openCatalog(const QString &path)
     m_catalog = catalog;
     m_catalogPath = path;
     m_exam->setCatalog(&m_catalog, path);
+    m_learning->setCatalog(&m_catalog, path);
     loadProgress();
     populateTree();
     updateStatus();

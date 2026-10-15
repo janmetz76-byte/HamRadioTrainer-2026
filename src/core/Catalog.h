@@ -14,6 +14,7 @@
 #include <QDate>
 #include <QString>
 #include <QStringList>
+#include <QHash>
 #include <QVector>
 
 #include <optional>
@@ -64,7 +65,6 @@ struct Answer
     bool hasContent() const { return !text.isEmpty() || !image.isEmpty(); }
 };
 
-struct CatalogMetadata;
 
 /// Per question revision metadata. A retired question stays in the catalog so
 /// that learning statistics of past sessions remain reproducible; the exam
@@ -77,6 +77,8 @@ struct QuestionHistory
 
     bool isRetired() const { return retiredOn.isValid(); }
 };
+
+struct CatalogMetadata;
 
 struct Question
 {
@@ -143,6 +145,13 @@ struct Part
     QVector<Section> sections;
 };
 
+/// Letter of a Prüfungsteil, taken from the last segment of its id
+/// ("DE-E-teil4-e" -> "E"). Empty when the id does not end in a single letter.
+///
+/// The catalogs name their parts this way, so this is the one place that knows
+/// how a letter is read back from a catalog.
+QString examPartLetter(const Part &part);
+
 struct CatalogMetadata
 {
     QString title;
@@ -181,5 +190,14 @@ struct Catalog
     int totalQuestionCount() const { return questions().size(); }
     int activeQuestionCount() const;
 };
+
+/// Index of every question of a catalog by its id.
+///
+/// The catalog is a tree of parts, sections and chapters, so looking a single
+/// question up means walking it. Views that work on single questions instead of
+/// walking the tree need this map, and building it once keeps them from
+/// repeating the same loop.
+QHash<QString, const Question *> questionIndex(const Catalog &catalog);
+
 
 } // namespace hrt

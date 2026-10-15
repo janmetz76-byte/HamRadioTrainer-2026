@@ -23,6 +23,7 @@ class QTreeWidgetItem;
 
 namespace hrt {
 class ExamWidget;
+class LearningWidget;
 } // namespace hrt
 
 namespace hrt {
@@ -54,6 +55,7 @@ private:
     QString m_catalogPath;
     QTabWidget *m_tabs = nullptr;
     ExamWidget *m_exam = nullptr;
+    LearningWidget *m_learning = nullptr;
     ProgressStore m_progressStore{ProgressStore(QString())};
     QTreeWidget *m_tree = nullptr;
     QPlainTextEdit *m_details = nullptr;

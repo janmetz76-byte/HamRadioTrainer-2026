@@ -23,14 +23,7 @@ namespace {
 /// state, otherwise the weighting would grow entries nobody can ever reach.
 QStringList knownQuestionIds(const Catalog &catalog)
 {
-    QStringList ids;
-    for (const Part &part : catalog.parts) {
-        for (const Section &section : part.sections) {
-            for (const Question *question : section.questions())
-                ids.append(question->id);
-        }
-    }
-    return ids;
+    return questionIndex(catalog).keys();
 }
 
 QString dateToString(const QDate &date)
