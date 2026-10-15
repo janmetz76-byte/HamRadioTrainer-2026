@@ -91,11 +91,15 @@ if(TARGET Qt6::Svg)
     target_compile_definitions(hrt_ui PUBLIC HRT_HAVE_SVG)
 endif()
 
-add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE
-    src/main.cpp
-    src/ui/MainWindow.cpp)
+# Das Hauptfenster liegt in einer Bibliothek, nicht direkt im Programm: nur so
+# laesst sich der Startablauf ueberhaupt pruefen, denn ein Executable kann
+# nicht in ein anderes Executable gelinkt werden.
+add_library(hrt_app STATIC src/ui/MainWindow.cpp)
+target_link_libraries(hrt_app PUBLIC hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 
-target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
+add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE src/main.cpp)
+
+target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_app hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 
 if(MSVC)
     target_compile_options(HamRadioTrainer2026 PRIVATE /W4 /permissive-)
@@ -152,6 +156,16 @@ if(Qt6Test_FOUND)
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endforeach()
     endif()
+
+    # Prueft den Startablauf: der Einrichtungsassistent muss beim ersten
+    # Start erscheinen und auch dann, wenn bereits ein Katalogpfad gemerkt ist.
+    add_executable(tst_startupflow tests/tst_startupflow.cpp)
+    target_link_libraries(tst_startupflow PRIVATE hrt_app hrt_ui hrt_core
+                                                 Qt6::Test Qt6::Widgets)
+    target_compile_definitions(tst_startupflow PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME startupflow COMMAND tst_startupflow)
+    set_tests_properties(startupflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     add_executable(tst_latex tests/tst_latex.cpp)
     # Prueft, dass das Programm seine Kataloge an den Orten findet, an denen

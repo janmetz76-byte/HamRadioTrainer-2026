@@ -412,17 +412,26 @@ void MainWindow::openInitialCatalog()
     }
     updateExamCountdown();
 
-    if (!last.isEmpty() && QFileInfo::exists(last) && openCatalog(last))
-        return;
+    bool opened = false;
+    if (!last.isEmpty() && QFileInfo::exists(last))
+        opened = openCatalog(last);
 
-    const CatalogLocator::Result located = CatalogLocator::locate();
-    if (located.paths.isEmpty()) {
-        m_status->setText(located.problem);
-        return;
+    if (!opened) {
+        const CatalogLocator::Result located = CatalogLocator::locate();
+        if (located.paths.isEmpty()) {
+            m_status->setText(located.problem);
+            return;
+        }
+        opened = openCatalog(located.paths.first());
     }
-    openCatalog(located.paths.first());
+    if (!opened)
+        return;
 
-    // Der Assistent braucht die Katalogauswahl, also laeuft er danach.
+    // Der Assistent laeuft unabhaengig davon, woher der Katalog kam. Ein
+    // frueherer Rueckkehrpfad hat ihn genau deshalb bei jedem zweiten Start
+    // uebersprungen - bei frisch Installiertem war er nie zu sehen, und bei
+    // denen, die das Programm schon benutzt hatten, nur nach einem
+    // Katalogwechsel.
     runStartupAssistant();
 }
 

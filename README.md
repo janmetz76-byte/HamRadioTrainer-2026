@@ -331,7 +331,7 @@ notwendig ist.
 
 ## Entwicklungstand
 
-Stand: alle 151 Tests in 13 Programmen sind grün. Die Anwendung ist
+Stand: alle 157 Tests in 14 Programmen sind grün. Die Anwendung ist
 funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
 und die Veröffentlichung.
 
