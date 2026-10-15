@@ -34,7 +34,9 @@ qt_standard_project_setup()
 add_library(hrt_core STATIC
     src/core/Catalog.cpp
     src/core/CatalogXml.cpp
-    src/core/CatalogValidator.cpp)
+    src/core/CatalogValidator.cpp
+    src/learning/Scheduler.cpp
+    src/exam/PaperBuilder.cpp)
 
 target_include_directories(hrt_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(hrt_core PUBLIC Qt6::Core Qt6::Xml)
@@ -89,6 +91,10 @@ if(Qt6Test_FOUND)
     target_compile_definitions(tst_catalog PRIVATE
         HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME catalog COMMAND tst_catalog)
+
+    add_executable(tst_scheduler tests/tst_scheduler.cpp)
+    target_link_libraries(tst_scheduler PRIVATE hrt_core Qt6::Test)
+    add_test(NAME scheduler COMMAND tst_scheduler)
 endif()
 
 # ---------------------------------------------------------------------------

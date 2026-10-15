@@ -212,11 +212,57 @@ data/catalogs/images/   687 SVG-Dateien zu den Bildfragen
 src/core/Catalog.*      Datenmodell
 src/core/CatalogXml.*   Lesen und Schreiben im Klartext-XML
 src/core/CatalogValidator.*  semantische Prüfung über das XSD hinaus
+src/learning/Scheduler.*  Lernzustand je Frage, Leitner-Ordnung, Gewichtung
+src/exam/PaperBuilder.*   Papierzusammenstellung und Mischen der Antworten
 src/ui/MainWindow.*     Fensterrahmen und Katalogbrowser
 tools/catalog-tool.cpp  Kommandozeilenwerkzeug zum Prüfen und Normalisieren
 tools/catalog-import.cpp  Import des BNetzA-Fragenkatalogs
-tests/tst_catalog.cpp   Testsuite
+tests/                  Testsuite (Katalog und Lernlogik)
 ```
+
+## Lernlogik
+
+### Antworten werden gemischt
+
+Der Quellkatalog führt die richtige Antwort immer an erster Stelle. Diese
+Reihenfolge darf den Lernenden nie erreichen, sonst wäre „immer das erste Feld
+anklicken" eine gewinnende Strategie.
+
+`PaperBuilder` erzeugt deshalb für jede Frage eine eigene Antwortreihenfolge,
+abgeleitet aus einer Startzahl der Prüfung. Gleiche Startzahl und gleiche Frage
+ergeben immer dieselbe Reihenfolge – eine Prüfung lässt sich damit später
+exakt nachvollziehen oder erneut ausdrucken. Eine feste Reihenfolge wie
+`D,B,A` lässt sich vorgeben, etwa für einen gemeldeten Fehler in der
+Originalprüfung.
+
+### Gewichtete Auswahl
+
+Sicher beherrschte Fragen sollen seltener gestellt werden als unsichere. Der
+`Scheduler` hält je Frage einen Leitner-Ordner (0–5), die Trefferquote, das
+Datum der letzten Beantwortung, den Fälligkeitstermin und die
+Selbsteinschätzung des Lernenden.
+
+Gewicht einer Frage:
+
+| Faktor | Wirkung |
+|---|---|
+| noch nie gestellt | Faktor 10, damit der Pool vollständig einmal durchlaufen wird |
+| Leitner-Ordner | Faktor 0,45 je Ordner |
+| „sicher" beantwortet | × 0,30 |
+| „ziemlich sicher" | × 0,55 |
+| „unsicher" | × 1,60 |
+| „geraten" | × 2,20 |
+| heute schon gestellt | × 0,05, verhindert Doppelungen in einer Sitzung |
+| lange nicht gesehen | × bis 2,0 nach 60 Tagen |
+
+Eine richtige Antwort, die der Lernende aber nur geraten hat, erhöht den Ordner
+kaum – sie kommt also bald wieder. Eine als „sicher" empfundene richtige
+Antwort erhöht ihn doppelt und verschiebt die Frage weit hinaus. Falsche
+Antworten senken den Ordner um zwei Stufen.
+
+Eine Prüfungssimulation kann die Fragen je Prüfungsteil als Quote vorgeben
+(`Options::questionsPerPart`), was für Klasse N mit ihren drei Prüfungsteilen
+notwendig ist.
 
 ## Entwicklungsstand
 
@@ -231,8 +277,9 @@ Erledigt:
 
 Noch offen:
 
-* Lernmodus mit Fortschrittsstatistik
-* Prüfungssimulation nach Prüfungsordnung
+* Lernlogik mit Leitner-Ordnern, Fälligkeit und Selbsteinschätzung
+* Prüfungssimulation mit gemischter Antwortreihenfolge und gewichteter Auswahl
+* Anbindung von Lernlogik und Simulation an die Oberfläche
 * Katalogpflege in der Anwendung
 * Ergänzung der Fehlerpunkte, die die Quelle nicht veröffentlicht
 * Darstellung der LaTeX-Formeln (KaTeX)
