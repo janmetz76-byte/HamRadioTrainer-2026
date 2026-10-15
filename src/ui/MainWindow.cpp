@@ -7,6 +7,8 @@
 // any later version.
 #include "MainWindow.h"
 
+#include "ValidationReport.h"
+
 #include "core/CatalogValidator.h"
 #include "core/CatalogLocator.h"
 #include "core/CatalogXml.h"
@@ -15,6 +17,7 @@
 
 #include <QAbstractItemView>
 #include <QAction>
+#include <QDockWidget>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
@@ -166,6 +169,20 @@ void MainWindow::buildUi()
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
     statusBar()->addWidget(m_status, 1);
+
+    // Der Pruefbericht ist ein andockbares Panel und kein Dialog: die
+    // mitgelieferten Kataloge erzeugen mehrere hundert Hinweise, die den
+    // Start nicht unterbrechen duerfen.
+    m_report = new ValidationReport(this);
+    m_reportDock = new QDockWidget(tr("Prüfbericht"), this);
+    m_reportDock->setObjectName(QStringLiteral("validationReport"));
+    m_reportDock->setWidget(m_report);
+    addDockWidget(Qt::BottomDockWidgetArea, m_reportDock);
+    m_reportDock->hide();
+
+    auto *reportAction = m_reportDock->toggleViewAction();
+    reportAction->setText(tr("Prüf&bericht"));
+    menuBar()->addAction(reportAction);
 }
 
 /// Reads the learning progress that belongs to this catalog. A progress file
@@ -308,7 +325,11 @@ bool MainWindow::openCatalog(const QString &path)
     }
 
     QVector<CatalogIssue> issues;
-    const bool usable = CatalogValidator::validate(catalog, &issues, path);
+    // Der Validator rechnet die Bildpfade relativ zu einem Verzeichnis, nicht
+    // relativ zur Katalogdatei. Uebergibt man hier den Dateipfad, meldet er
+    // jedes einzelne Bild als fehlend.
+    const bool usable =
+        CatalogValidator::validate(catalog, &issues, QFileInfo(path).absolutePath());
 
     m_catalog = catalog;
     m_catalogPath = path;
@@ -449,27 +470,32 @@ void MainWindow::updateStatus()
 
 void MainWindow::showIssues(const QVector<CatalogIssue> &issues)
 {
-    QString text;
-    int errors = 0;
-    int warnings = 0;
-    for (const CatalogIssue &issue : issues) {
-        if (issue.severity == IssueSeverity::Error)
-            ++errors;
-        else
-            ++warnings;
-        text += (issue.severity == IssueSeverity::Error ? tr("FEHLER: ") : tr("HINWEIS: "));
-        text += issue.location;
-        text += QStringLiteral(" — ");
-        text += issue.message;
-        text += QLatin1Char('\n');
+    m_report->setIssues(issues);
+
+    const int errors = m_report->errorCount();
+    const int warnings = m_report->warningCount();
+
+    if (errors > 0) {
+        // Ohne diese Meldung merkt niemand, dass der Katalog unbrauchbar ist.
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Critical);
+        box.setWindowTitle(tr("Katalog enthält Fehler"));
+        box.setText(tr("%1 Fehler, %2 Hinweise.").arg(errors).arg(warnings));
+        box.setInformativeText(
+            tr("Der Katalog wird nicht zum Lernen oder Prüfen verwendet. Die vollständige "
+               "Liste steht im Prüfbericht unten."));
+        box.setStandardButtons(QMessageBox::Ok);
+        box.exec();
+        m_reportDock->show();
+        return;
     }
 
-    QMessageBox box(this);
-    box.setIcon(errors > 0 ? QMessageBox::Critical : QMessageBox::Information);
-    box.setWindowTitle(errors > 0 ? tr("Katalog enthält Fehler") : tr("Katalog enthält Hinweise"));
-    box.setText(tr("%1 Fehler, %2 Hinweise").arg(errors).arg(warnings));
-    box.setDetailedText(text);
-    box.exec();
+    if (warnings > 0) {
+        // Hinweise blockieren nicht. Der Zähler im Menü weist auf sie hin.
+        m_reportDock->setWindowTitle(
+            tr("Prüfbericht (%1)").arg(warnings == 1 ? tr("1 Hinweis")
+                                                    : tr("%1 Hinweise").arg(warnings)));
+    }
 }
 
 } // namespace hrt

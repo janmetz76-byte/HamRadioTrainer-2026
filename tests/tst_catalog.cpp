@@ -93,6 +93,7 @@ private slots:
     void validatorRejectsOversizedSelection();
     void validatorDetectsImagePathEscape();
     void loadsShippedExampleCatalogs();
+    void shippedCatalogsHaveNoMissingImages();
     void everyClassCoversAllFivePruefungsteile();  
     void sharedPartsAreIdenticalAcrossClasses();
 };
@@ -261,6 +262,35 @@ void CatalogTest::loadsShippedExampleCatalogs()
 /// classes, plus one technical sheet per class N, E, A. A certificate covers
 /// all sheets up to and including its own class, because a candidate who
 /// already holds a lower certificate only sits the sheets above it.
+void CatalogTest::shippedCatalogsHaveNoMissingImages()
+{
+    // Regression: Der Validator bekommt ein Verzeichnis. Uebergab man ihm
+    // stattdessen den Katalogdateipfad, meldete er jedes der 687 Bilder als
+    // fehlend - die Anzeige war dann voll von Warnungen, obwohl alle Bilder
+    // vorhanden waren. loadsShippedExampleCatalogs haette das durchgelassen,
+    // weil es die Hinweise nur protokolliert.
+    const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
+    const QStringList files = {QStringLiteral("de-amateurfunk-N.xml"),
+                               QStringLiteral("de-amateurfunk-E.xml"),
+                               QStringLiteral("de-amateurfunk-A.xml")};
+
+    for (const QString &file : files) {
+        Catalog catalog;
+        QString error;
+        QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error),
+                 qPrintable(error));
+
+        QVector<CatalogIssue> issues;
+        CatalogValidator::validate(catalog, &issues, base);
+
+        for (const CatalogIssue &issue : issues) {
+            QVERIFY2(!issue.message.contains(QStringLiteral("nicht gefunden")),
+                     qPrintable(QStringLiteral("%1 meldet ein fehlendes Bild: %2 (Basispfad %3)")
+                                    .arg(file, issue.message, base)));
+        }
+    }
+}
+
 void CatalogTest::everyClassCoversAllFivePruefungsteile()
 {
     const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");

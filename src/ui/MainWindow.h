@@ -15,6 +15,7 @@
 #include <QMainWindow>
 #include <QVector>
 
+class QDockWidget;
 class QLabel;
 class QPlainTextEdit;
 class QTabWidget;
@@ -24,6 +25,7 @@ class QTreeWidgetItem;
 namespace hrt {
 class ExamWidget;
 class LearningWidget;
+class ValidationReport;
 } // namespace hrt
 
 namespace hrt {
@@ -55,6 +57,9 @@ private:
     void populateTree();
     void showQuestion(QTreeWidgetItem *item);
     void updateStatus();
+    /// Fills the validation report. Errors keep blocking with a modal dialog,
+    /// because an unusable catalog must not be used by accident. Warnings do
+    /// not: they are collected in the dock and merely announced.
     void showIssues(const QVector<CatalogIssue> &issues);
 
     Catalog m_catalog;
@@ -66,6 +71,8 @@ private:
     QTreeWidget *m_tree = nullptr;
     QPlainTextEdit *m_details = nullptr;
     QLabel *m_status = nullptr;
+    QDockWidget *m_reportDock = nullptr;
+    ValidationReport *m_report = nullptr;
 };
 
 } // namespace hrt

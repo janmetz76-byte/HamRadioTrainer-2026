@@ -77,7 +77,8 @@ add_library(hrt_ui STATIC
     src/ui/AnswerView.cpp
     src/ui/ExamWidget.cpp
     src/ui/ImageLoader.cpp
-    src/ui/LearningWidget.cpp)
+    src/ui/LearningWidget.cpp
+    src/ui/ValidationReport.cpp)
 
 target_include_directories(hrt_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 target_link_libraries(hrt_ui PUBLIC hrt_core Qt6::Widgets Qt6::Gui)
@@ -139,7 +140,8 @@ if(Qt6Test_FOUND)
     add_test(NAME scheduler COMMAND tst_scheduler)
 
     if(TARGET Qt6::Widgets)
-        foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget)
+        foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget
+                          tst_validationreport)
             add_executable(${widget_test} tests/${widget_test}.cpp)
             target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
             add_test(NAME ${widget_test} COMMAND ${widget_test})

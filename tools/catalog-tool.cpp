@@ -14,6 +14,7 @@
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QDir>
 #include <QTextStream>
 
@@ -39,7 +40,9 @@ int report(const QStringList &paths, bool verbose)
         }
 
         QVector<CatalogIssue> issues;
-        const bool usable = CatalogValidator::validate(catalog, &issues, path);
+        // Der Validator erwartet das Verzeichnis, nicht den Katalogdateipfad.
+        const bool usable =
+            CatalogValidator::validate(catalog, &issues, QFileInfo(path).absolutePath());
 
         if (verbose) {
             out << QStringLiteral("%1\n").arg(path);
