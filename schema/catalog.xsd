@@ -90,9 +90,13 @@
     </xs:complexType>
   </xs:element>
 
+  <!-- One part is one amtlicher Prüfungsteil: V, B, N, E or A. A certificate of
+       class N covers V, B and N; class E covers V, B, N and E; class A covers
+       all five. -->
   <xs:element name="part">
     <xs:complexType>
       <xs:sequence>
+        <xs:element name="selection" type="selectionType" minOccurs="0"/>
         <xs:element ref="section" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
       <xs:attribute name="id"    type="xs:ID" use="required"/>
@@ -106,7 +110,6 @@
   <xs:element name="section">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="selection" type="selectionType" minOccurs="0"/>
         <xs:element ref="chapters" minOccurs="0"/>
       </xs:sequence>
       <xs:attribute name="id"    type="xs:ID" use="required"/>
@@ -115,11 +118,14 @@
     </xs:complexType>
   </xs:element>
 
-  <!-- How the exam simulator draws a paper for this section. Omitted while the
-       official number of questions is not documented in the source. -->
+  <!-- Prüfungsumfang of a Prüfungsteil, as fixed by Amtsblatt-Verfügung 29/2024:
+       25 questions per sheet, one point each, passed at 19 points, so six wrong
+       answers are tolerated. "minutes" is the time limit for that sheet. -->
   <xs:complexType name="selectionType">
     <xs:attribute name="questions"   type="xs:nonNegativeInteger" use="required"/>
     <xs:attribute name="errorPoints" type="xs:nonNegativeInteger" use="optional"/>
+    <xs:attribute name="passScore"   type="xs:nonNegativeInteger" use="optional"/>
+    <xs:attribute name="minutes"     type="xs:nonNegativeInteger" use="optional"/>
   </xs:complexType>
 
   <!-- ==================== chapters ==================== -->

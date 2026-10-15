@@ -110,13 +110,15 @@ struct Chapter
     QVector<Question> questions;
 };
 
-/// How the exam simulator draws a paper for a section.
-/// "questions" is mandatory, "errorPoints" is an optional target budget that
-/// constrains which question types may be drawn.
+/// Prüfungsumfang of one amtlicher Prüfungsteil, fixed by
+/// Amtsblatt-Verfügung 29/2024: 25 questions, 19 of which must be correct,
+/// so six wrong answers are tolerated. The duration limit is informational.
 struct Selection
 {
     int questions = 0;
-    std::optional<int> errorPoints;
+    std::optional<int> errorPoints;  ///< wrong answers still tolerated
+    std::optional<int> passScore;    ///< points required to pass
+    std::optional<int> minutes;      ///< time limit
 };
 
 struct Section
@@ -124,7 +126,6 @@ struct Section
     QString id;
     QString title;
     int order = 0;
-    Selection selection;
     QVector<Chapter> chapters;
 
     QVector<Question *> questions();
@@ -132,11 +133,13 @@ struct Section
     int activeQuestionCount() const;
 };
 
+/// One amtlicher Prüfungsteil (V, B, N, E or A).
 struct Part
 {
     QString id;
     QString title;
     int order = 0;
+    Selection selection;
     QVector<Section> sections;
 };
 

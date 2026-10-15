@@ -43,7 +43,7 @@ Catalog makeMinimalCatalog()
     section.id = QStringLiteral("DE-N-1-1");
     section.title = QStringLiteral("Abschnitt 1");
     section.order = 1;
-    section.selection.questions = 1;
+    part.selection.questions = 1;
 
     Chapter chapter;
     chapter.id = QStringLiteral("DE-N-1-1-1");
@@ -93,7 +93,7 @@ private slots:
     void validatorRejectsOversizedSelection();
     void validatorDetectsImagePathEscape();
     void loadsShippedExampleCatalogs();
-    void everyClassCoversAllThreePruefungsteile();
+    void everyClassCoversAllFivePruefungsteile();  
     void sharedPartsAreIdenticalAcrossClasses();
 };
 
@@ -133,7 +133,7 @@ void CatalogTest::serializesAndParsesBack()
     QCOMPARE(parsed.schemaVersion, original.schemaVersion);
     QCOMPARE(parsed.metadata.examClass, ExamClass::Novize);
     QCOMPARE(parsed.parts.size(), 1);
-    QCOMPARE(parsed.parts.first().sections.first().selection.questions, 1);
+    QCOMPARE(parsed.parts.first().selection.questions, 1);
     QCOMPARE(parsed.parts.first().sections.first().chapters.first().questions.size(), 1);
 
     const Question *question = parsed.questions().first();
@@ -210,7 +210,7 @@ void CatalogTest::validatorRejectsSingleWithTwoCorrectAnswers()
 void CatalogTest::validatorRejectsOversizedSelection()
 {
     Catalog catalog = makeMinimalCatalog();
-    catalog.parts.first().sections.first().selection.questions = 99;
+    catalog.parts.first().selection.questions = 99;
 
     QVector<CatalogIssue> issues;
     QVERIFY(!CatalogValidator::validate(catalog, &issues));
@@ -257,46 +257,71 @@ void CatalogTest::loadsShippedExampleCatalogs()
     }
 }
 
-/// The Prüfungsordnung requires all three Prüfungsteile for N, E and A, while
-/// the source data only ever tags the questions of the two shared parts with
-/// class 1. The importer therefore assigns them to every class, and this test
-/// makes sure that rule cannot silently regress.
-void CatalogTest::everyClassCoversAllThreePruefungsteile()
+/// Amtsblatt-Verfügung 29/2024 defines five sheets: V and B shared by all
+/// classes, plus one technical sheet per class N, E, A. A certificate covers
+/// all sheets up to and including its own class, because a candidate who
+/// already holds a lower certificate only sits the sheets above it.
+void CatalogTest::everyClassCoversAllFivePruefungsteile()
 {
     const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
-    const QStringList files = {QStringLiteral("de-amateurfunk-N.xml"),
-                               QStringLiteral("de-amateurfunk-E.xml"),
-                               QStringLiteral("de-amateurfunk-A.xml")};
 
-    for (const QString &file : files) {
+    struct Expectation
+    {
+        const char *file;
+        QStringList sheets;   ///< letters in expected order
+        int questions;
+    };
+    const QVector<Expectation> expectations = {
+        {"de-amateurfunk-N.xml", {QStringLiteral("V"), QStringLiteral("B"), QStringLiteral("N")}, 571},
+        {"de-amateurfunk-E.xml",
+         {QStringLiteral("V"), QStringLiteral("B"), QStringLiteral("N"), QStringLiteral("E")}, 1034},
+        {"de-amateurfunk-A.xml",
+         {QStringLiteral("V"), QStringLiteral("B"), QStringLiteral("N"), QStringLiteral("E"),
+          QStringLiteral("A")},
+         1750},
+    };
+
+    for (const Expectation &expectation : expectations) {
         Catalog catalog;
         QString error;
-        QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error), qPrintable(error));
+        const QString path = QDir(base).filePath(QString::fromLatin1(expectation.file));
+        QVERIFY2(CatalogXml::load(path, &catalog, &error), qPrintable(error));
 
-        QCOMPARE(catalog.parts.size(), 3);
-
+        QCOMPARE(catalog.parts.size(), expectation.sheets.size());
         int total = 0;
-        for (const Part &part : catalog.parts) {
-            QVERIFY2(part.title.contains(QStringLiteral("Technische Kenntnisse"))
-                         || part.title.contains(QStringLiteral("Betriebliche Kenntnisse"))
-                         || part.title.contains(QStringLiteral("Vorschriften")),
-                     qPrintable(part.title));
-            QVERIFY2(!part.sections.isEmpty(), qPrintable(file));
+        for (int i = 0; i < catalog.parts.size(); ++i) {
+            const Part &part = catalog.parts.at(i);
+            const QString letter = part.id.section(QLatin1Char('-'), -1).toUpper();
+            QCOMPARE(letter, expectation.sheets.at(i));
+
+            // Prüfungsumfang: 25 questions, 6 tolerated wrong answers, 19 points,
+            // 60 minutes only for sheet A.
+            QCOMPARE(part.selection.questions, 25);
+            QCOMPARE(part.selection.errorPoints.value_or(-1), 6);
+            QCOMPARE(part.selection.passScore.value_or(-1), 19);
+            QCOMPARE(part.selection.minutes.value_or(-1), letter == QLatin1String("A") ? 60 : 45);
+
+            QVERIFY(!part.sections.isEmpty());
             for (const Section &section : part.sections)
                 total += section.activeQuestionCount();
         }
-        QVERIFY2(total > 0, qPrintable(file));
+        QCOMPARE(total, expectation.questions);
+
+        // One point per question, taken from the Verfügung.
+        QCOMPARE(catalog.metadata.defaultPoints, 1);
+        QVERIFY(!catalog.metadata.attribution.isEmpty());
+        QCOMPARE(catalog.metadata.license, QStringLiteral("DL-DE-BY-2.0"));
     }
 }
 
-/// "Betriebliche Kenntnisse" and "Kenntnisse von Vorschriften" must be the same
-/// question set for every class, because the Prüfungsordnung says only
-/// "Technische Kenntnisse" differs.
+/// V and B carry no class tag in the source, and the technical sheet of a
+/// lower class is reused unchanged in the catalogs of the higher classes.
+/// All of them must therefore carry identical question sets.
 void CatalogTest::sharedPartsAreIdenticalAcrossClasses()
 {
     const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
-    QHash<QString, QSet<QString>> shared; // part title -> question ids
-    int technicalQuestions = 0;
+    QHash<QString, QSet<QString>> perSheet; // sheet letter -> question ids
+    int technicalTotal = 0;
 
     for (const QString &file :
          {QStringLiteral("de-amateurfunk-N.xml"), QStringLiteral("de-amateurfunk-E.xml"),
@@ -306,30 +331,29 @@ void CatalogTest::sharedPartsAreIdenticalAcrossClasses()
         QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error), qPrintable(error));
 
         for (const Part &part : catalog.parts) {
-            const bool isTechnical = part.title.contains(QStringLiteral("Technische Kenntnisse"));
+            const QString letter = part.id.section(QLatin1Char('-'), -1).toUpper();
             QSet<QString> ids;
-            for (const Question *question : part.sections.isEmpty()
-                                                ? QVector<const Question *>()
-                                                : [&part] {
-                                                      QVector<const Question *> all;
-                                                      for (const Section &section : part.sections)
-                                                          all.append(section.questions());
-                                                      return all;
-                                                  }()) {
-                ids.insert(question->id);
+            for (const Section &section : part.sections) {
+                for (const Question *question : section.questions())
+                    ids.insert(question->id);
             }
-            if (isTechnical) {
-                technicalQuestions += ids.size();
-                continue;
-            }
-            if (!shared.contains(part.title))
-                shared.insert(part.title, ids);
-            QCOMPARE(ids, shared.value(part.title));
+            if (!perSheet.contains(letter))
+                perSheet.insert(letter, ids);
+            QCOMPARE(ids, perSheet.value(letter));
         }
     }
 
-    QCOMPARE(shared.size(), 2);        // two shared Prüfungsteile
-    QCOMPARE(technicalQuestions, 1374); // 195 + 463 + 716
+    QCOMPARE(perSheet.size(), 5);
+    QCOMPARE(perSheet.value(QStringLiteral("V")).size(), 204);
+    QCOMPARE(perSheet.value(QStringLiteral("B")).size(), 172);
+    QCOMPARE(perSheet.value(QStringLiteral("N")).size(), 195);
+    QCOMPARE(perSheet.value(QStringLiteral("E")).size(), 463);
+    QCOMPARE(perSheet.value(QStringLiteral("A")).size(), 716);
+
+    for (const QString &letter : {QStringLiteral("V"), QStringLiteral("B"),
+                                  QStringLiteral("N")})
+        technicalTotal += perSheet.value(letter).size();
+    QCOMPARE(technicalTotal, 571); // pool of a class N certificate
 }
 
 QTEST_MAIN(CatalogTest)

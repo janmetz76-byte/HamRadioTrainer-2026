@@ -95,8 +95,49 @@ bool CatalogValidator::validate(const Catalog &catalog, QVector<CatalogIssue> *i
             add(issues, IssueSeverity::Error, part.id,
                 QStringLiteral("Der Prüfungsteil '%1' enthält keine Abschnitte.").arg(part.id));
         }
-        for (const Section &section : part.sections)
+        int available = 0;
+        for (const Section &section : part.sections) {
+            available += section.activeQuestionCount();
             checkSection(section, basePath, metadata, issues, &seenIds);
+        }
+
+        const Selection &selection = part.selection;
+        if (selection.questions > 0) {
+            if (selection.questions > available) {
+                add(issues, IssueSeverity::Error, part.id,
+                    QStringLiteral("Prüfungsteil '%1' verlangt %2 Fragen, enthält aber nur %3 "
+                                   "verfügbare (ungesperrte, nicht zurückgezogene) Fragen.")
+                        .arg(part.id)
+                        .arg(selection.questions)
+                        .arg(available));
+            }
+            if (selection.errorPoints && selection.questions > 0
+                && *selection.errorPoints >= selection.questions) {
+                add(issues, IssueSeverity::Warning, part.id,
+                    QStringLiteral("Prüfungsteil '%1': Fehlerpunkte (%2) sind nicht kleiner als "
+                                   "die Frageanzahl (%3). Die Prüfung wäre dann immer zu "
+                                   "bestehen.")
+                        .arg(part.id)
+                        .arg(*selection.errorPoints)
+                        .arg(selection.questions));
+            }
+            if (selection.passScore && *selection.passScore > selection.questions) {
+                add(issues, IssueSeverity::Error, part.id,
+                    QStringLiteral("Prüfungsteil '%1': Bestehensschwelle (%2) liegt über der "
+                                   "Frageanzahl (%3).")
+                        .arg(part.id)
+                        .arg(*selection.passScore)
+                        .arg(selection.questions));
+            }
+            if (!metadata.defaultPoints
+                && (selection.questions * metadata.defaultPoints) == 0) {
+                add(issues, IssueSeverity::Warning, part.id,
+                    QStringLiteral("Prüfungsteil '%1': Für die Punktewertung fehlt ein Wert. "
+                                   "Ohne defaultPoints in den Metadaten lässt sich die "
+                                   "Punktezahl nicht bestimmen.")
+                        .arg(part.id));
+            }
+        }
     }
 
     if (metadata.defaultPoints <= 0) {
@@ -139,30 +180,6 @@ void CatalogValidator::checkSection(const Section &section, const QString &baseP
     if (section.chapters.isEmpty()) {
         add(issues, IssueSeverity::Error, section.id,
             QStringLiteral("Abschnitt '%1' enthält keine Kapitel.").arg(section.id));
-        return;
-    }
-
-    if (section.selection.questions > 0) {
-        const int available = section.activeQuestionCount();
-        if (section.selection.questions > available) {
-            add(issues, IssueSeverity::Error, section.id,
-                QStringLiteral("Abschnitt '%1' verlangt %2 Fragen, enthält aber nur %3 "
-                               "verfügbare (ungesperrte, nicht zurückgezogene) Fragen.")
-                    .arg(section.id)
-                    .arg(section.selection.questions)
-                    .arg(available));
-        }
-        if (section.selection.errorPoints) {
-            int budget = *section.selection.errorPoints;
-            if (budget < section.selection.questions) {
-                add(issues, IssueSeverity::Warning, section.id,
-                    QStringLiteral("Abschnitt '%1': Fehlerpunktebudget (%2) ist kleiner als die "
-                                   "geforderte Frageanzahl (%3).")
-                        .arg(section.id)
-                        .arg(budget)
-                        .arg(section.selection.questions));
-            }
-        }
     }
 
     for (const Chapter &chapter : section.chapters) {

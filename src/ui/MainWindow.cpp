@@ -36,6 +36,15 @@ enum ItemRole {
     QuestionRole = Qt::UserRole + 1,
 };
 
+/// Number of drawable questions of a Prüfungsteil, including its sections.
+int partAvailable(const Part &part)
+{
+    int count = 0;
+    for (const Section &section : part.sections)
+        count += section.activeQuestionCount();
+    return count;
+}
+
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent)
@@ -156,8 +165,12 @@ void MainWindow::populateTree()
             auto *sectionItem = new QTreeWidgetItem(partItem);
             sectionItem->setText(0, section.title);
             sectionItem->setText(1, section.id);
+            sectionItem->setText(2, tr("Abschnitt, %1 Fragen").arg(section.questions().size()));
             sectionItem->setText(
-                2, tr("Abschnitt, %1 Fragen").arg(section.selection.questions));
+                1, tr("%1 · %2 Fragen Prüfungsteil, %3 verfügbar")
+                        .arg(section.id)
+                        .arg(part.selection.questions)
+                        .arg(part.selection.questions > 0 ? partAvailable(part) : 0));
 
             for (const Chapter &chapter : section.chapters) {
                 auto *chapterItem = new QTreeWidgetItem(sectionItem);

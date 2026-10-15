@@ -205,49 +205,85 @@ Prüfungssimulation kann das Fehlerpunktbudget der Prüfungsordnung erst
 einhalten, wenn die Punkte ergänzt werden; der Validator weist darauf einmal je
 Katalog hin.
 
-### Katalog prüfen und normalisieren
+### Katalog und Prüfungsstruktur
 
-Das Kommandozeilenwerkzeug `hrt-catalog-tool` prüft Kataloge ohne grafische
-Oberfläche und eignet sich für CI:
+Die fünf Prüfungsteile und der Prüfungsumfang folgen der **Amtsblatt-Verfügung
+29/2024** (gültig ab 24.06.2024), nicht der Gliederung der Quelldatei:
+
+| Prüfungsteil | Inhalt                      | Fragen | Punkte | Bestehen | Fehlerpunkte | Zeit |
+|--------------|-----------------------------|--------|--------|----------|--------------|------|
+| V            | Kenntnisse von Vorschriften  | 25     | 25     | 19       | 6            | 45 min |
+| B            | Betriebliche Kenntnisse      | 25     | 25     | 19       | 6            | 45 min |
+| N            | Technische Kenntnisse, Klasse N | 25  | 25     | 19       | 6            | 45 min |
+| E            | Technische Kenntnisse, Klasse E | 25  | 25     | 19       | 6            | 45 min |
+| A            | Technische Kenntnisse, Klasse A | 25  | 25     | 19       | 6            | 60 min |
+
+Eine Frage zählt einen Fehlerpunkt, da die Verfügung für jede richtige Antwort
+einen Punkt vorsieht. Bestanden sind 19 der 25 Punkte, also sind 6 falsche
+Antworten zulässig. Wird nur ein Teil nicht bestanden, folgt die mündliche
+Nachprüfung in genau diesem Teil.
+
+Eine Bescheinigung umfasst alle Teile bis einschließlich der eigenen Klasse, weil
+Inhaber einer niedrigeren Klasse nur die höheren Teile ablegen:
+
+| Zertifikat | Prüfungsteile          | Bögen | Fragen je Prüfung | Pool im Katalog |
+|------------|------------------------|-------|-------------------|-----------------|
+| Klasse N   | V, B, N                | 3     | 75                | 571             |
+| Klasse E   | V, B, N, E             | 4     | 100               | 1034            |
+| Klasse A   | V, B, N, E, A          | 5     | 125               | 1750            |
+
+Die Quelldatei kennt diese Aufteilung nicht. Sie gliedert nach
+„Betriebliche Kenntnisse“, „Kenntnisse von Vorschriften“ und
+„Technische Kenntnisse“; letztere trägt je Frage eine Klassenmarkierung, die
+Teile V und B tragen überhaupt keine. Der Importer führt diese Gliederung in die
+amtlichen Prüfungsteile über: V und B werden klassenübergreifend gemeinsam
+genutzt, die technischen Fragen werden nach ihrer Klassenmarkierung auf N, E
+und A verteilt. Für Klasse E enthält der Katalog deshalb auch den
+N-Prüfungsteil, für Klasse A zusätzlich N und E.
+
+### Quellen
+
+- `Prüfungsfragen/fragenkatalog3b.json`, 3. Auflage, März 2024, gültig ab 24.06.2024
+- `Pruefungsfragen/svgs/`, 687 benötigte Bilder
+- Prüfungsumfang: Amtsblatt-Verfügung 29/2024
+
+Antwort A ist in der Quelle immer richtig. Die Quelldatei nennt keine
+Fehlerpunkte je Frage; der Wert 1 stammt aus der Verfügung und steht als
+`defaultPoints` in den Katalogmetadaten.
+
+### Neu importieren
 
 ```sh
-# Kennzahlen und Beanstandungen ausgeben
-./build/hrt-catalog-tool --info data/catalogs/*.xml
-
-# Semantisch prüfen, Exitcode 1 bei Fehlern
-./build/hrt-catalog-tool data/catalogs/*.xml
-
-# Prüfen, ob eine Datei dem kanonischen Format entspricht (nichts wird geschrieben)
-./build/hrt-catalog-tool --normalize data/catalogs/*.xml
-
-# Prüfen und anschließend in das kanonische Format zurückschreiben
-./build/hrt-catalog-tool --normalize --write data/catalogs/*.xml
+hrt-catalog-import --source <Pfad zu Pruefungsfragen> --output data/catalogs
+hrt-catalog-tool --info data/catalogs/*.xml
 ```
 
-Zusätzlich prüft `xmllint` gegen das Schema:
+### Katalogformat
 
-```sh
-xmllint --noout --schema schema/catalog.xsd data/catalogs/de-amateurfunk-E.xml
+Unverschlüsseltes, handeditierbares XML gemäß `schema/catalog.xsd`. Es lässt
+sich in jedem Texteditor öffnen, gezielt durchsuchen und ergänzen. Die
+Prüfungsumfang-Angaben liegen am Prüfungsteil:
+
+```xml
+<part id="DE-A-teil5-a" title="A (Technische Kenntnisse, Klasse A) …" order="5">
+  <selection questions="25" errorPoints="6" passScore="19" minutes="60"/>
+  <section id="DE-A-teil5-a-abschnitt1" title="…" order="1">
+    <chapters>
+      <chapter id="…" title="…" order="1">
+        <question id="DE-A-a-0123" type="single">
+          <text>…</text>
+          <answers>
+            <answer id="DE-A-a-0123-a" correct="true">…</answer>
+          </answers>
+        </question>
+      </chapter>
+    </chapters>
+  </section>
+</part>
 ```
 
-## Projektstruktur
-
-```
-CMakeLists.txt          Projekt, Build, Installation
-LICENSE                 GPL-3.0-or-later
-schema/catalog.xsd      verbindliche Definition des Katalogformats
-data/catalogs/          Kataloge N, E, A (importiert aus der BNetzA-Quelle)
-data/catalogs/images/   687 SVG-Dateien zu den Bildfragen
-src/core/Catalog.*      Datenmodell
-src/core/CatalogXml.*   Lesen und Schreiben im Klartext-XML
-src/core/CatalogValidator.*  semantische Prüfung über das XSD hinaus
-src/learning/Scheduler.*  Lernzustand je Frage, Leitner-Ordnung, Gewichtung
-src/exam/PaperBuilder.*   Papierzusammenstellung und Mischen der Antworten
-src/ui/MainWindow.*     Fensterrahmen und Katalogbrowser
-tools/catalog-tool.cpp  Kommandozeilenwerkzeug zum Prüfen und Normalisieren
-tools/catalog-import.cpp  Import des BNetzA-Fragenkatalogs
-tests/                  Testsuite (Katalog und Lernlogik), 27 Tests
-```
+Lizenzen: Programm GPL-3.0-or-later, Fragentexte und Bilder
+DL-DE-BY-2.0 mit verpflichtendem `<attribution>`.
 
 ## Lernlogik
 

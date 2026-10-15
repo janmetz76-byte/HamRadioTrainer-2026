@@ -233,6 +233,22 @@ bool CatalogXml::loadFromString(const QByteArray &document, Catalog *catalog, QS
                 part.title = reader.attributes().value(QLatin1String("title")).toString();
                 part.order = reader.attributes().value(QLatin1String("order")).toInt();
                 while (reader.readNextStartElement()) {
+                    if (reader.name() == QLatin1String("selection")) {
+                        part.selection.questions =
+                            reader.attributes().value(QLatin1String("questions")).toInt();
+                        const QXmlStreamAttributes attributes = reader.attributes();
+                        if (attributes.hasAttribute(QLatin1String("errorPoints")))
+                            part.selection.errorPoints =
+                                attributes.value(QLatin1String("errorPoints")).toInt();
+                        if (attributes.hasAttribute(QLatin1String("passScore")))
+                            part.selection.passScore =
+                                attributes.value(QLatin1String("passScore")).toInt();
+                        if (attributes.hasAttribute(QLatin1String("minutes")))
+                            part.selection.minutes =
+                                attributes.value(QLatin1String("minutes")).toInt();
+                        reader.readNext(); // <selection/> is empty
+                        continue;
+                    }
                     if (reader.name() != QLatin1String("section")) {
                         *error = QStringLiteral("Unerwartetes Element '%1' unter <part>.")
                                      .arg(reader.name().toString());
@@ -244,15 +260,7 @@ bool CatalogXml::loadFromString(const QByteArray &document, Catalog *catalog, QS
                     section.order = reader.attributes().value(QLatin1String("order")).toInt();
                     while (reader.readNextStartElement()) {
                         const QString sectionName = reader.name().toString();
-                        if (sectionName == QLatin1String("selection")) {
-                            section.selection.questions =
-                                reader.attributes().value(QLatin1String("questions")).toInt();
-                            const QXmlStreamAttributes attributes = reader.attributes();
-                            if (attributes.hasAttribute(QLatin1String("errorPoints")))
-                                section.selection.errorPoints =
-                                    attributes.value(QLatin1String("errorPoints")).toInt();
-                            reader.readNext(); // <selection/> is empty
-                        } else if (sectionName == QLatin1String("chapters")) {
+                        if (sectionName == QLatin1String("chapters")) {
                             while (reader.readNextStartElement()) {
                                 if (reader.name() != QLatin1String("chapter")) {
                                     *error = QStringLiteral("Unerwartetes Element '%1' unter "
@@ -374,20 +382,26 @@ QByteArray CatalogXml::toXml(const Catalog &catalog)
         writer.writeAttribute(QStringLiteral("id"), part.id);
         writer.writeAttribute(QStringLiteral("title"), part.title);
         writer.writeAttribute(QStringLiteral("order"), QString::number(part.order));
+        if (part.selection.questions > 0) {
+            writer.writeStartElement(QStringLiteral("selection"));
+            writer.writeAttribute(QStringLiteral("questions"),
+                                  QString::number(part.selection.questions));
+            if (part.selection.errorPoints)
+                writer.writeAttribute(QStringLiteral("errorPoints"),
+                                      QString::number(*part.selection.errorPoints));
+            if (part.selection.passScore)
+                writer.writeAttribute(QStringLiteral("passScore"),
+                                      QString::number(*part.selection.passScore));
+            if (part.selection.minutes)
+                writer.writeAttribute(QStringLiteral("minutes"),
+                                      QString::number(*part.selection.minutes));
+            writer.writeEndElement();
+        }
         for (const Section &section : part.sections) {
             writer.writeStartElement(QStringLiteral("section"));
             writer.writeAttribute(QStringLiteral("id"), section.id);
             writer.writeAttribute(QStringLiteral("title"), section.title);
             writer.writeAttribute(QStringLiteral("order"), QString::number(section.order));
-            if (section.selection.questions > 0) {
-                writer.writeStartElement(QStringLiteral("selection"));
-                writer.writeAttribute(QStringLiteral("questions"),
-                                      QString::number(section.selection.questions));
-                if (section.selection.errorPoints)
-                    writer.writeAttribute(QStringLiteral("errorPoints"),
-                                          QString::number(*section.selection.errorPoints));
-                writer.writeEndElement();
-            }
             writer.writeStartElement(QStringLiteral("chapters"));
             for (const Chapter &chapter : section.chapters) {
                 writer.writeStartElement(QStringLiteral("chapter"));
