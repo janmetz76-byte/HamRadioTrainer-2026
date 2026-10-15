@@ -235,11 +235,8 @@ set(CPACK_PACKAGE_DESCRIPTION
     "Bundesnetzagentur, der Prüfungsumfang der Amtsblatt-Verfügung 29/2024.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/hamradiotrainer/hamradiotrainer-2026")
 # Ein .deb braucht zwingend eine erreichbare Maintainer-Adresse, sonst bricht
-# der Build ab. ".invalid" ist per RFC 2606 nie erreichbar und zeigt deutlich,
-# dass hier noch nichts veroeffentlicht wird.
-#
-# VOR DER VEROEFFENTLICHUNG ERSETZEN.
-set(CPACK_PACKAGE_CONTACT "jan.dc6dx@hamradiotrainer.invalid")
+# der Build ab.
+set(CPACK_PACKAGE_CONTACT "jan@dc6dx.de")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGE_FILE_NAME
     "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")

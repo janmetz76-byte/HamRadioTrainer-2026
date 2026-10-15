@@ -512,10 +512,10 @@ makepkg -si
 
 ### Noch offen
 
-* Die Paketkontaktadresse in `CMakeLists.txt` steht auf `.invalid` und muss vor
-  der Veröffentlichung durch eine erreichbare Adresse ersetzt werden.
-* Ein AppImage ist eingerichtet, aber nicht fertig; es braucht ein zusätzliches
-  Werkzeug (`appimagetool` oder `linuxdeployqt`) beim Bauen.
+* Ein AppImage für die Distributionen ohne passendes `.deb` oder `.rpm`
+  (Void, Gentoo, Solus, Slackware) ist nicht eingerichtet. Es braucht ein
+  zusätzliches Werkzeug (`appimagetool` oder `linuxdeployqt`) beim Bauen und
+  liefert ohne Installation lauffähige Dateien auf jedem x86-64-Linux.
 
 ## Geschichte
 

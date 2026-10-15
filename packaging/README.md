@@ -76,14 +76,11 @@ Ein AppImage ist hier noch nicht eingerichtet. Es braucht `appimagetool` oder
 `linuxdeployqt`, die beide nicht Teil von CPack sind und beim Bauen
 zusätzlich beschafft werden müssten.
 
-## Vor der Veröffentlichung noch zu erledigen
+## Paketkontakt
 
-In `CMakeLists.txt` steht als Paketkontakt eine Adresse auf der Endung
-`.invalid`. Diese ist per RFC 2606 bewusst nie erreichbar und markiert damit,
-dass hier noch nichts veröffentlicht wurde. Ein `.deb` lässt sich ohne
-Maintainer-Adresse nicht bauen – vor der Veröffentlichung muss eine echte,
-erreichbare Adresse eingetragen werden. Für RPM und NSIS ist das Feld
-freiwillig, sollte aber aus demselben Grund gefüllt werden.
+Der Paketkontakt steht auf `jan@dc6dx.de` und ist in `CMakeLists.txt` über
+`CPACK_PACKAGE_CONTACT` gesetzt. Ein `.deb` lässt sich ohne Maintainer-Adresse
+nicht bauen; für RPM und NSIS ist das Feld freiwillig, wird aber mitgeführt.
 
 ## Prüfen, was in einem Paket landet
 
