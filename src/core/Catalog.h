@@ -46,7 +46,7 @@ std::optional<QuestionType> questionTypeFromString(const QString &value);
 /// How the math markup inside a question is encoded.
 enum class TextFormat {
     Plain,  ///< no markup
-    Latex,  ///< $...$ inline markup, rendered with KaTeX
+    Latex,  ///< $...$ inline markup, rendered by LatexFormatter
 };
 
 QString textFormatToString(TextFormat value);

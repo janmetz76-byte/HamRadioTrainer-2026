@@ -107,6 +107,27 @@ QString resolveImage(const QJsonObject &question, const QString &key, ImportStat
     return QStringLiteral("images/%1.svg").arg(name);
 }
 
+/// Repairs markup that the source writes outside of any formula.
+///
+/// The catalogs are meant to be edited by hand, so they should not carry
+/// LaTeX commands that no renderer would ever see. The source contains exactly
+/// three such places: two siunitx unit macros and one German quotation mark.
+QString tidySourceMarkup(const QString &text)
+{
+    static const QHash<QString, QString> replacements = {
+        {QStringLiteral("\\mOhm"), QStringLiteral("mΩ")},
+        {QStringLiteral("\\kiloOhm"), QStringLiteral("kΩ")},
+        {QStringLiteral("\\Ohm"), QStringLiteral("Ω")},
+        {QStringLiteral("\\glqq"), QStringLiteral("\u201e")},
+        {QStringLiteral("\\grqq"), QStringLiteral("\u201c")},
+    };
+
+    QString result = text;
+    for (auto it = replacements.cbegin(); it != replacements.cend(); ++it)
+        result.replace(it.key(), it.value());
+    return result;
+}
+
 /// Appends one source question to a chapter.
 void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &addedOn,
                  ImportStats *stats)
@@ -114,7 +135,7 @@ void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &added
     Question question;
     question.id = source.value(QStringLiteral("number")).toString().trimmed();
     question.order = chapter->questions.size() + 1;
-    question.text = source.value(QStringLiteral("question")).toString().trimmed();
+    question.text = tidySourceMarkup(source.value(QStringLiteral("question")).toString().trimmed());
     question.points = 0; // not published by the source
 
     question.image = resolveImage(source, QStringLiteral("picture_question"), stats);
@@ -128,7 +149,7 @@ void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &added
         Answer answer;
         answer.id = question.id + QLatin1Char('-') + letter;
         answer.order = i + 1;
-        answer.text = source.value(QStringLiteral("answer_") + letter).toString().trimmed();
+        answer.text = tidySourceMarkup(source.value(QStringLiteral("answer_") + letter).toString().trimmed());
         answer.image = resolveImage(source, QStringLiteral("picture_") + letter, stats);
         if (!answer.image.isEmpty())
             ++stats->withAnswerImages;

@@ -14392,7 +14392,7 @@ Klasse E in den Amateurfunkbändern zwischen 1300 MHz und 250 GHz?</text>
                 </history>
               </question>
               <question id="AC523" order="2" type="single" textFormat="latex">
-                <text>Welche Verlustleistung erzeugt ein Power-MOS-FET mit $R_{\textrm{DSon}}$ = 4 \mOhm bei einem Strom von 25 A?</text>
+                <text>Welche Verlustleistung erzeugt ein Power-MOS-FET mit $R_{\textrm{DSon}}$ = 4 mΩ bei einem Strom von 25 A?</text>
                 <answers>
                   <answer id="AC523-a" text="2,5 W" correct="true" order="1"/>
                   <answer id="AC523-b" text="1 W" correct="false" order="2"/>
@@ -15258,7 +15258,7 @@ Klasse E in den Amateurfunkbändern zwischen 1300 MHz und 250 GHz?</text>
                 </history>
               </question>
               <question id="AD203" order="27" type="single" textFormat="latex">
-                <text>Wo liegt die Grenzfrequenz des Audio-Verstärkers, wenn $R_{1}$ = 4,7 \kiloOhm, $C_1$ = 6,8 nF und $C_2$ = 47 nF betragen? Der Verstärker hat eine Grenzfrequenz von 1 MHz und die Impedanz des Eingangs PIN 2 ist mit 1 MOhm sehr hochohmig.</text>
+                <text>Wo liegt die Grenzfrequenz des Audio-Verstärkers, wenn $R_{1}$ = 4,7 kΩ, $C_1$ = 6,8 nF und $C_2$ = 47 nF betragen? Der Verstärker hat eine Grenzfrequenz von 1 MHz und die Impedanz des Eingangs PIN 2 ist mit 1 MOhm sehr hochohmig.</text>
                 <answers>
                   <answer id="AD203-a" text="ca. 5 kHz" correct="true" order="1"/>
                   <answer id="AD203-b" text="ca. 720 Hz" correct="false" order="2"/>
@@ -17943,7 +17943,7 @@ Klasse E in den Amateurfunkbändern zwischen 1300 MHz und 250 GHz?</text>
                 </history>
               </question>
               <question id="AF305" order="10" type="single">
-                <text>Dieses Blockschaltbild zeigt einen SSB-Sender. Die Stufe bei \glqq?&quot; ist ein...</text>
+                <text>Dieses Blockschaltbild zeigt einen SSB-Sender. Die Stufe bei „?&quot; ist ein...</text>
                 <answers>
                   <answer id="AF305-a" text="Quarzfilter als Bandpass für das gewünschte Seitenband." correct="true" order="1"/>
                   <answer id="AF305-b" text="RC-Hochpass zur Unterdrückung des unteren Seitenbands." correct="false" order="2"/>

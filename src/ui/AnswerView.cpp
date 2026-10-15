@@ -7,6 +7,7 @@
 #include "AnswerView.h"
 
 #include "ImageLoader.h"
+#include "core/LatexFormatter.h"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -18,6 +19,22 @@
 
 namespace hrt {
 namespace {
+
+/// Puts a text into a label, rendering the math when the question carries it.
+///
+/// A QLabel in AutoText mode treats a string that looks like markup as markup,
+/// so plain questions are switched to PlainText explicitly. Otherwise a
+/// question containing a less-than sign would be swallowed.
+void setQuestionText(QLabel *label, const QString &text, TextFormat format)
+{
+    if (format == TextFormat::Latex) {
+        label->setTextFormat(Qt::RichText);
+        label->setText(LatexFormatter::toRichText(text));
+        return;
+    }
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
+}
 
 /// Marks a control row as right or wrong once the solution has been shown.
 void tintRow(QWidget *row, const QColor &colour)
@@ -38,6 +55,7 @@ AnswerView::AnswerView(QWidget *parent)
     m_layout->setSpacing(6);
 
     m_text = new QLabel(this);
+    m_text->setTextFormat(Qt::PlainText);
     m_text->setWordWrap(true);
     m_text->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_layout->addWidget(m_text);
@@ -76,6 +94,7 @@ void AnswerView::clear()
         delete item;
     }
     m_text->clear();
+    m_text->setTextFormat(Qt::PlainText);
     m_text->hide();
 }
 
@@ -91,9 +110,7 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
     m_catalogDir = catalogDir;
     m_answerCount = order.size();
 
-    QString text = question->text;
-    text.replace(QLatin1Char('\n'), QLatin1Char(' '));
-    m_text->setText(text.simplified());
+    setQuestionText(m_text, question->text.simplified(), question->textFormat);
     m_text->show();
 
     const QPixmap questionImage = renderImage(question->image);
@@ -122,17 +139,20 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
                                        ? static_cast<QAbstractButton *>(new QCheckBox(row))
                                        : static_cast<QAbstractButton *>(new QRadioButton(row));
         control->setText(QString());
-        control->setToolTip(answer ? answer->text : QObject::tr("Antwort %1").arg(position + 1));
+        control->setToolTip(answer ? answer->text
+                                   : QObject::tr("Antwort %1").arg(position + 1));
         rowLayout->addWidget(control, 0, Qt::AlignTop);
         if (auto *radio = qobject_cast<QRadioButton *>(control))
             group->addButton(radio, position);
         else
             group->addButton(control, position);
 
-        auto *label = new QLabel(answer ? answer->text : QObject::tr("Antwort %1").arg(position + 1),
-                                 row);
+        const QString answerText = answer
+                                        ? answer->text
+                                        : QObject::tr("Antwort %1").arg(position + 1);
+        auto *label = new QLabel(row);
         label->setWordWrap(true);
-        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        setQuestionText(label, answerText.simplified(), question->textFormat);
         rowLayout->addWidget(label, 1);
 
         const QPixmap answerImage = answer ? renderImage(answer->image) : QPixmap();

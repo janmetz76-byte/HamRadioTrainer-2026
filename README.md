@@ -351,7 +351,8 @@ Erledigt:
   offenen Fragen mit Erhebung der Selbsteinschätzung
 * Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
   gebunden an den Prüfsummen-Abdruck der Katalogdatei
-* Testsuite (97 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Formeln der 219 LaTeX-Fragen werden dargestellt
+* Testsuite (121 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
 
 ### Lernfortschritt
 
@@ -400,9 +401,38 @@ Wird „nur fällige“ gewählt, kommen die fälligen Wiederholungen vor den no
 gesehenen Fragen. Sonst würde eine kurze Runde vollständig aus neuen Fragen
 bestehen und das Filterziel verfehlt.
 
+### Formeln
+
+219 der 1750 Fragen der Klasse A enthalten Formeln. Der Vorrat wurde in den
+Katalogen selbst gemessen und ist klein:
+
+| | |
+|---|---|
+| Formelstellen | 355 |
+| Umgebungen (`\\begin{…}`) | keine |
+| Befehle | `\\lambda`, `\\Omega`, `\\eta`, `\\varphi`, `\\text`, `\\textrm`, `\\cdot`, `\\circ`, `\\frac`, `\\dfrac`, `\\sqrt`, `\\left`, `\\right` |
+
+Damit rechtfertigt der Bestand keine vollständige TeX-Installation. `LatexFormatter`
+bildet genau diese Befehle auf Qt-Richtext ab – griechische Buchstaben als
+Unicode, `^{…}` und `_{…}` als Hoch- bzw. Tiefstellung, Brüche als
+`Zähler⁄Nenner` und `\sqrt` als `√(…)`. Das wiegt deutlich leichter als KaTeX
+mit QtWebEngine und hängt nicht an einer zusätzlichen Laufzeitabhängigkeit.
+
+Es werden drei Delimiter unterstützt: `$…$`, `$$…$$` und `\[…\]`.
+
+Ein nicht abgedeckter Befehl wird **nicht** entfernt, sondern bleibt sichtbar
+stehen. Eine Formel, die nicht dargestellt werden kann, soll einen sichtbaren
+Riss zeigen und nicht stillschweigend fehlen.
+
+Der Test `everyFormulaOfTheCatalogsRenders` prüft alle 356 Formeln der
+ausgelieferten Kataloge darauf, dass keinerlei Rückstriche übrig bleiben.
+
+Drei Stellen der Quelle schreiben Markup außerhalb jeder Formel (`4 \\mOhm`,
+`4,7 \\kiloOhm`, ein `\\glqq`). Der Import schreibt sie als `mΩ`, `kΩ` und
+`„` in den Katalog, damit die von Hand zu bearbeitenden Dateien lesbar bleiben.
+
 Noch offen:
 * Katalogpflege in der Anwendung
-* Darstellung der LaTeX-Formeln (219 Fragen der Klasse A)
 * mündliche Nachprüfung als eigener Prüfungsteil-Generator
 * Installer und Linux-Pakete (AppImage, Flatpak)
 

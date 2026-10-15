@@ -35,6 +35,7 @@ add_library(hrt_core STATIC
     src/core/Catalog.cpp
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
+    src/core/LatexFormatter.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
     src/learning/LearningStatistics.cpp
@@ -130,6 +131,12 @@ if(Qt6Test_FOUND)
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endforeach()
     endif()
+
+    add_executable(tst_latex tests/tst_latex.cpp)
+    target_link_libraries(tst_latex PRIVATE hrt_core Qt6::Test)
+    target_compile_definitions(tst_latex PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME latex COMMAND tst_latex)
 
     add_executable(tst_learning tests/tst_learning.cpp)
     target_link_libraries(tst_learning PRIVATE hrt_core Qt6::Test)
