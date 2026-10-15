@@ -13,6 +13,8 @@
 #include <QDomDocument>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
+#include <QSet>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -91,6 +93,8 @@ private slots:
     void validatorRejectsOversizedSelection();
     void validatorDetectsImagePathEscape();
     void loadsShippedExampleCatalogs();
+    void everyClassCoversAllThreePruefungsteile();
+    void sharedPartsAreIdenticalAcrossClasses();
 };
 
 void CatalogTest::examClassRoundTrip()
@@ -251,6 +255,81 @@ void CatalogTest::loadsShippedExampleCatalogs()
         QVERIFY2(usable, qPrintable(QStringLiteral("%1 ist nicht verwendbar").arg(file)));
         QVERIFY(catalog.activeQuestionCount() > 0);
     }
+}
+
+/// The Prüfungsordnung requires all three Prüfungsteile for N, E and A, while
+/// the source data only ever tags the questions of the two shared parts with
+/// class 1. The importer therefore assigns them to every class, and this test
+/// makes sure that rule cannot silently regress.
+void CatalogTest::everyClassCoversAllThreePruefungsteile()
+{
+    const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
+    const QStringList files = {QStringLiteral("de-amateurfunk-N.xml"),
+                               QStringLiteral("de-amateurfunk-E.xml"),
+                               QStringLiteral("de-amateurfunk-A.xml")};
+
+    for (const QString &file : files) {
+        Catalog catalog;
+        QString error;
+        QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error), qPrintable(error));
+
+        QCOMPARE(catalog.parts.size(), 3);
+
+        int total = 0;
+        for (const Part &part : catalog.parts) {
+            QVERIFY2(part.title.contains(QStringLiteral("Technische Kenntnisse"))
+                         || part.title.contains(QStringLiteral("Betriebliche Kenntnisse"))
+                         || part.title.contains(QStringLiteral("Vorschriften")),
+                     qPrintable(part.title));
+            QVERIFY2(!part.sections.isEmpty(), qPrintable(file));
+            for (const Section &section : part.sections)
+                total += section.activeQuestionCount();
+        }
+        QVERIFY2(total > 0, qPrintable(file));
+    }
+}
+
+/// "Betriebliche Kenntnisse" and "Kenntnisse von Vorschriften" must be the same
+/// question set for every class, because the Prüfungsordnung says only
+/// "Technische Kenntnisse" differs.
+void CatalogTest::sharedPartsAreIdenticalAcrossClasses()
+{
+    const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
+    QHash<QString, QSet<QString>> shared; // part title -> question ids
+    int technicalQuestions = 0;
+
+    for (const QString &file :
+         {QStringLiteral("de-amateurfunk-N.xml"), QStringLiteral("de-amateurfunk-E.xml"),
+          QStringLiteral("de-amateurfunk-A.xml")}) {
+        Catalog catalog;
+        QString error;
+        QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error), qPrintable(error));
+
+        for (const Part &part : catalog.parts) {
+            const bool isTechnical = part.title.contains(QStringLiteral("Technische Kenntnisse"));
+            QSet<QString> ids;
+            for (const Question *question : part.sections.isEmpty()
+                                                ? QVector<const Question *>()
+                                                : [&part] {
+                                                      QVector<const Question *> all;
+                                                      for (const Section &section : part.sections)
+                                                          all.append(section.questions());
+                                                      return all;
+                                                  }()) {
+                ids.insert(question->id);
+            }
+            if (isTechnical) {
+                technicalQuestions += ids.size();
+                continue;
+            }
+            if (!shared.contains(part.title))
+                shared.insert(part.title, ids);
+            QCOMPARE(ids, shared.value(part.title));
+        }
+    }
+
+    QCOMPARE(shared.size(), 2);        // two shared Prüfungsteile
+    QCOMPARE(technicalQuestions, 1374); // 195 + 463 + 716
 }
 
 QTEST_MAIN(CatalogTest)

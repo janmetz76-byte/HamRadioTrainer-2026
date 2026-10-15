@@ -146,8 +146,9 @@ void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &added
     ++stats->questions;
 }
 
-/// Recursively gathers the questions of one source section that belong to the
-/// selected class.
+/// Recursively gathers the questions of one source section. An empty
+/// "classFilter" takes every question, which is what the two shared
+/// Prüfungsteile need: see partIsClassSpecific().
 void collectQuestions(const QJsonArray &sections, const QString &classFilter,
                       QVector<QJsonObject> *sink)
 {
@@ -156,16 +157,38 @@ void collectQuestions(const QJsonArray &sections, const QString &classFilter,
         const QJsonArray own = section.value(QStringLiteral("questions")).toArray();
         for (const QJsonValue &questionValue : own) {
             const QJsonObject question = questionValue.toObject();
-            if (question.value(QStringLiteral("class")).toString() == classFilter)
+            if (classFilter.isEmpty()
+                || question.value(QStringLiteral("class")).toString() == classFilter) {
                 sink->append(question);
+            }
         }
         collectQuestions(section.value(QStringLiteral("sections")).toArray(), classFilter, sink);
     }
 }
 
+/// Only "Technische Kenntnisse" differs between the examination classes.
+///
+/// The Prüfungsordnung states that all three Prüfungsteile must be passed for
+/// N, E and A and that their content differs between the classes "nur im
+/// Prüfungsteil Technische Kenntnisse". The source data agrees with the first
+/// half of that statement: every question of "Betriebliche Kenntnisse" and
+/// "Kenntnisse von Vorschriften" carries class 1 and none carries class 2 or 3.
+/// They are therefore treated as a shared pool used by all three classes, and
+/// the class tag in the source is read as "introduced with class N", not as
+/// "only asked in class N".
+///
+/// This is an interpretation of the Prüfungsordnung, not something the file
+/// states. It is recorded in the catalog notes and can be switched off with
+/// --no-shared-parts.
+bool partIsClassSpecific(const QString &partTitle)
+{
+    return partTitle.contains(QStringLiteral("Technische Kenntnisse"));
+}
+
 /// Builds one catalog from the source tree.
 Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamClass examClass,
-                     char letter, const QString &classFilter, ImportStats *stats)
+                     char letter, const QString &classFilter, bool useSharedParts,
+                     ImportStats *stats)
 {
     Catalog catalog;
 
@@ -191,15 +214,22 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
     catalog.metadata.notes = QStringLiteral(
         "Fehlerpunkte werden in der Quelle nicht veröffentlicht und stehen daher auf 0. Nach der "
         "ersten Änderung von Hand modifiedSinceSource auf true setzen und den Quellenvermerk "
-        "anpassen.");
+        "anpassen. Annahme zum Umfang: Die Prüfungsteile 'Betriebliche Kenntnisse' und "
+        "'Kenntnisse von Vorschriften' sind laut Prüfungsordnung für N, E und A inhaltlich "
+        "gleich und in der Quelle nur der Klasse 1 zugeordnet; sie werden deshalb allen Klassen "
+        "zugeordnet.");
 
     int partOrder = 0;
     for (const QJsonValue &topValue : root.value(QStringLiteral("sections")).toArray()) {
         const QJsonObject top = topValue.toObject();
         const QString topTitle = top.value(QStringLiteral("title")).toString();
 
+        const QString partFilter = (useSharedParts && !partIsClassSpecific(topTitle))
+                                       ? QString()
+                                       : classFilter;
+
         QVector<QJsonObject> topQuestions;
-        collectQuestions(QJsonArray{top}, classFilter, &topQuestions);
+        collectQuestions(QJsonArray{top}, partFilter, &topQuestions);
         if (topQuestions.isEmpty())
             continue;
 
@@ -238,7 +268,7 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
             for (const QJsonValue &midValue : midSections) {
                 const QJsonObject mid = midValue.toObject();
                 QVector<QJsonObject> midQuestions;
-                collectQuestions(QJsonArray{mid}, classFilter, &midQuestions);
+                collectQuestions(QJsonArray{mid}, partFilter, &midQuestions);
                 if (midQuestions.isEmpty())
                     continue;
 
@@ -258,9 +288,9 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
                 for (const QJsonValue &unitValue : unitSections) {
                     const QJsonObject unit = unitValue.toObject();
                     QVector<QJsonObject> unitQuestions;
-                    collectQuestions(QJsonArray{unit}, classFilter, &unitQuestions);
+                    collectQuestions(QJsonArray{unit}, partFilter, &unitQuestions);
                     if (unitQuestions.isEmpty())
-                        continue;
+                            continue;
 
                     ++chapterOrder;
                     Chapter chapter;
@@ -346,6 +376,11 @@ int main(int argc, char *argv[])
         QStringLiteral("Zielverzeichnis für die erzeugten Kataloge und Bilder."),
         QStringLiteral("dir"));
     parser.addOption(outputOption);
+    QCommandLineOption sharedPartsOption(
+        QStringLiteral("no-shared-parts"),
+        QStringLiteral("Betriebliche Kenntnisse und Kenntnisse von Vorschriften nicht als "
+                       "gemeinsamer Pool für alle Klassen behandeln."));
+    parser.addOption(sharedPartsOption);
     parser.process(app);
 
     const QString sourceDirPath = parser.isSet(sourceOption) ? parser.value(sourceOption)
@@ -394,7 +429,8 @@ int main(int argc, char *argv[])
     for (const Target &target : targets) {
         ImportStats stats;
         const Catalog catalog =
-            buildCatalog(root, metadata, target.examClass, target.letter, target.filter, &stats);
+            buildCatalog(root, metadata, target.examClass, target.letter, target.filter,
+                         !parser.isSet(sharedPartsOption), &stats);
         if (catalog.parts.isEmpty()) {
             err << QStringLiteral("Klasse %1: keine Fragen gefunden\n").arg(QLatin1Char(target.letter));
             ++failures;

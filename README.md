@@ -150,16 +150,45 @@ kopiert die benötigten Bilder:
     --output data/catalogs
 ```
 
-Ergebnis des Imports vom 3. Auflage, März 2024:
+Ergebnis des Imports der 3. Auflage, März 2024:
 
-| Katalog | Fragen | Fragebilder | Antwortbilder | davon reine Bildfragen | LaTeX |
-|---|---|---|---|---|---|
-| Klasse N | 571 | 55 | 36 | 9 | 16 |
-| Klasse E | 463 | 98 | 112 | 28 | 53 |
-| Klasse A | 716 | 226 | 160 | 40 | 150 |
+| Katalog | Technische Kenntnisse | Betriebliche Kenntnisse | Kenntnisse von Vorschriften | gesamt |
+|---|---:|---:|---:|---:|
+| Klasse N | 195 | 172 | 204 | 571 |
+| Klasse E | 463 | 172 | 204 | 839 |
+| Klasse A | 716 | 172 | 204 | 1092 |
 
-Es werden 687 SVG-Dateien kopiert. Die Fragezahlen stimmen exakt mit der Quelle
-überein.
+Es werden 687 SVG-Dateien kopiert.
+
+#### Die beiden gemeinsamen Prüfungsteile
+
+Die BNetzA führt „Betriebliche Kenntnisse" und „Kenntnisse von Vorschriften"
+ausschließlich mit der Klassenangabe 1. Ihre Zugehörigkeit zu den Klassen E und
+A lässt sich aus den Prüfungsunterlagen begründen:
+
+> Für den Erwerb einer Amateurfunkprüfungsbescheinigung müssen die
+> Prüfungsteile „Technische Kenntnisse", „Betriebliche Kenntnisse" und
+> „Kenntnisse von Vorschriften" erfolgreich abgelegt werden. Die Inhalte und
+> Anforderungen der Prüfungsteile unterscheiden sich bei den Klassen A, E und N
+> nur im Prüfungsteil „Technische Kenntnisse".
+> — Bundesnetzagentur, https://www.bundesnetzagentur.de/Amateurfunk
+
+Alle drei Prüfungsteile werden also für jede Klasse verlangt, und nur
+„Technische Kenntnisse" ist klassenspezifisch. Der Import behandelt die beiden
+anderen deshalb als gemeinsamen Pool aller Klassen und interpretiert die
+Klassenangabe 1 als „eingeführt mit Klasse N", nicht als „nur in Klasse N".
+
+Das ist eine **Auslegung der Prüfungsordnung**, keine Aussage der Datei. Sie
+steht deshalb in den `notes` jedes erzeugten Katalogs und lässt sich mit
+`--no-shared-parts` abschalten. Zwei Tests sichern die Regel ab: jeder Katalog
+muss drei Prüfungsteile führen, und die beiden gemeinsamen Teile müssen in allen
+drei Klassen identisch sein.
+
+Daraus folgt auch die Erklärung der Zahlen aus dem vorherigen Abschnitt: Klasse N
+umfasst mehr Fragen als E, weil N alle drei Prüfungsteile abdeckt, E und A
+dagegen nur die Technischen Kenntnisse klassenspezifisch haben. Die **Poolgröße
+ist nicht der Prüfungsumfang** – wie viele Fragen tatsächlich gezogen werden,
+steht nicht in der Quelldatei (siehe `selection`).
 
 Zwei Eigenheiten der Quelle, die im Format berücksichtigt sind:
 
@@ -217,7 +246,7 @@ src/exam/PaperBuilder.*   Papierzusammenstellung und Mischen der Antworten
 src/ui/MainWindow.*     Fensterrahmen und Katalogbrowser
 tools/catalog-tool.cpp  Kommandozeilenwerkzeug zum Prüfen und Normalisieren
 tools/catalog-import.cpp  Import des BNetzA-Fragenkatalogs
-tests/                  Testsuite (Katalog und Lernlogik)
+tests/                  Testsuite (Katalog und Lernlogik), 27 Tests
 ```
 
 ## Lernlogik
@@ -271,8 +300,9 @@ Erledigt:
 * Katalogformat als Klartext-XML mit Schema
 * Datenmodell, XML-Leser, XML-Schreiber, semantischer Validator
 * Testsuite (13 Tests) und Kommandozeilenwerkzeug
-* Import des amtlichen BNetzA-Fragenkatalogs, 1750 Fragen für N, E und A
-  inklusive 687 Bildern, schemakonform geprüft
+* Import des amtlichen BNetzA-Fragenkatalogs: 2502 katalogisierte Fragen für
+  N, E und A (571 / 839 / 1092) inklusive 687 Bildern, schemakonform geprüft
+* alle drei Prüfungsteile je Klasse, gemeinsame Teile als Pool modelliert
 * GitHub-Actions-Build für Linux und Windows 10/11
 
 Noch offen:

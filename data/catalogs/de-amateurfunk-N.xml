@@ -11,7 +11,7 @@
     <sourceUrl>https://www.bundesnetzagentur.de/amateurfunk</sourceUrl>
     <license>DL-DE-&gt;BY-2.0</license>
     <attribution>Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen, Bundesnetzagentur, 3. Auflage, März 2024, (www.bundesnetzagentur.de/amateurfunk), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)</attribution>
-    <notes>Fehlerpunkte werden in der Quelle nicht veröffentlicht und stehen daher auf 0. Nach der ersten Änderung von Hand modifiedSinceSource auf true setzen und den Quellenvermerk anpassen.</notes>
+    <notes>Fehlerpunkte werden in der Quelle nicht veröffentlicht und stehen daher auf 0. Nach der ersten Änderung von Hand modifiedSinceSource auf true setzen und den Quellenvermerk anpassen. Annahme zum Umfang: Die Prüfungsteile 'Betriebliche Kenntnisse' und 'Kenntnisse von Vorschriften' sind laut Prüfungsordnung für N, E und A inhaltlich gleich und in der Quelle nur der Klasse 1 zugeordnet; sie werden deshalb allen Klassen zugeordnet.</notes>
   </metadata>
   <parts>
     <part id="DE-N-teil1" title="Prüfungsfragen im Prüfungsteil: Technische Kenntnisse" order="1">
