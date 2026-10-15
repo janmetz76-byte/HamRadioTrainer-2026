@@ -42,6 +42,13 @@ public:
     /// because its questions come from the previous catalog.
     void setCatalog(const Catalog *catalog, const QString &catalogPath);
 
+    /// Continues with the learning progress read from disk.
+    void setProgress(const QVector<QuestionState> &states);
+
+    /// Forget everything that was learned so far, e.g. after the catalog was
+    /// replaced by a new edition.
+    void clearProgress();
+
     /// Questions of the official examination and its time limit in minutes.
     bool startExam();
     /// A training paper of the given length, without pass marks.
@@ -49,6 +56,14 @@ public:
 
     /// Learning progress collected by finished papers, to be persisted.
     const Scheduler &scheduler() const { return m_scheduler; }
+
+signals:
+    /// Emitted after a finished paper, with the progress that has to be kept.
+    void progressChanged(const hrt::Scheduler &scheduler);
+
+    /// Emitted once the paper has been graded. The widget does not present the
+    /// result itself, so the application decides how to show it.
+    void examFinished(const hrt::ExamResult &result);
 
 private slots:
     void showCurrentQuestion();
@@ -65,7 +80,6 @@ private:
     void updateNavigation();
     QPixmap renderImage(const QString &relativePath) const;
     void applyResultToScheduler(const ExamResult &result);
-    void showResult(const ExamResult &result);
 
     const Catalog *m_catalog = nullptr;
     QString m_catalogDir;

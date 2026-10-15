@@ -7,13 +7,17 @@
 #include "ExamWidget.h"
 
 #include "core/CatalogXml.h"
+#include "learning/ProgressStore.h"
 
 #include <QAbstractButton>
 #include <QCheckBox>
 #include <QLabel>
 #include <QRadioButton>
+#include <QPushButton>
 #include <QScrollArea>
+#include <QStandardPaths>
 #include <QTimer>
+#include <QScopedPointer>
 #include <QtTest>
 
 using namespace hrt;
@@ -58,12 +62,84 @@ class ExamWidgetTest : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void withoutCatalogNothingCanBeStarted();
     void examPresentsTheFirstQuestionOfTheFirstPart();
     void trainingPaperHasNoPassMarkInTheHeader();
     void answersCanBeSelectedAndReplaced();
     void catalogChangeDiscardsTheRunningPaper();
+    void progressSurvivesAFullSession();
 };
+
+/// The whole learning loop: answering a paper updates the progress, the
+/// progress reaches the disk, and a freshly started application finds it again.
+void ExamWidgetTest::progressSurvivesAFullSession()
+{
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    const QString path = catalogPathFor("de-amateurfunk-N.xml");
+    QScopedPointer<ExamWidget> widget(new ExamWidget);
+    widget->setCatalog(&catalog, path);
+
+    QVERIFY(widget->startTraining(8));
+    QVERIFY(widget->scheduler().states().isEmpty());
+
+    int answered = 0;
+    for (int i = 0; i < 8; ++i) {
+        for (int k = 0; k < 5; ++k)
+            QCoreApplication::processEvents();
+        QScrollArea *area = widget->findChild<QScrollArea *>();
+        QVERIFY(area);
+        const QList<QAbstractButton *> buttons = area->findChildren<QAbstractButton *>();
+        if (buttons.isEmpty())
+            break;
+        // Always pick the last answer, so some answers are wrong on purpose and
+        // the boxes actually move.
+        buttons.last()->click();
+        ++answered;
+        for (QPushButton *b : widget->findChildren<QPushButton *>()) {
+            if (b->text().startsWith(QStringLiteral("Nächste"))) {
+                b->click();
+                break;
+            }
+        }
+    }
+    QCOMPARE(answered, 8);
+
+    // The progress is only updated when the paper is graded, because that is
+    // the moment the outcome of every question is known.
+    ExamResult graded;
+    connect(widget.data(), &ExamWidget::examFinished, this,
+            [&graded](const ExamResult &result) { graded = result; });
+    QVERIFY(QMetaObject::invokeMethod(widget.data(), "finishExam"));
+    QCOMPARE(graded.totalQuestions, 8);
+    QCOMPARE(graded.wrongAnswers + graded.achievedPoints, 8);
+    QCOMPARE(widget->scheduler().states().size(), 8);
+    QVERIFY(widget->scheduler().weightFor(widget->scheduler().states().first()) >= 0.0);
+
+    // The application saves on progressChanged.
+    const QString file = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                             .filePath(QStringLiteral("fortschritt-de-n.json"));
+    QFile::remove(file);
+    const ProgressStore store(file);
+    QVERIFY(store.save(catalog, widget->scheduler().states(), nullptr));
+
+    // A new widget, as after a restart, must start with this progress.
+    QScopedPointer<ExamWidget> restarted(new ExamWidget);
+    restarted->setCatalog(&catalog, path);
+    const ProgressLoad loaded = store.load(catalog);
+    QVERIFY2(loaded.error.isEmpty(), qPrintable(loaded.error));
+    QCOMPARE(loaded.states.size(), 8);
+    restarted->setProgress(loaded.states);
+    QCOMPARE(restarted->scheduler().states().size(), 8);
+
+    QFile::remove(file);
+}
+
+void ExamWidgetTest::initTestCase()
+{
+    // Keep the test away from the real application data directory.
+    QStandardPaths::setTestModeEnabled(true);
+}
 
 void ExamWidgetTest::withoutCatalogNothingCanBeStarted()
 {

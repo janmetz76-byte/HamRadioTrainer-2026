@@ -11,7 +11,10 @@
 #include "core/CatalogXml.h"
 #include "ExamWidget.h"
 
+#include <QAbstractItemView>
 #include <QAction>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -21,9 +24,11 @@
 #include <QPlainTextEdit>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QTableWidget>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QVBoxLayout>
 
 namespace hrt {
 namespace {
@@ -55,7 +60,12 @@ MainWindow::MainWindow(QWidget *parent)
     buildUi();
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow()
+{
+    // The last paper may not have been followed by another click, so the
+    // progress is written once more on the way out.
+    saveProgress();
+}
 
 void MainWindow::buildUi()
 {
@@ -77,6 +87,26 @@ void MainWindow::buildUi()
     connect(reloadAction, &QAction::triggered, this,
             [this] { if (!m_catalogPath.isEmpty()) openCatalog(m_catalogPath); });
 
+    auto *resetProgressAction = new QAction(tr("Lern&fortschritt zurücksetzen"), this);
+    connect(resetProgressAction, &QAction::triggered, this, [this] {
+        if (m_catalogPath.isEmpty())
+            return;
+        const auto answer = QMessageBox::question(
+            this, tr("Lernfortschritt zurücksetzen"),
+            tr("Alle Leitner-Ordner, Fälligkeiten und Trefferquoten dieses Katalogs werden "
+               "gelöscht. Die Fragenkataloge selbst bleiben unverändert. Wirklich löschen?"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes)
+            return;
+        QString error;
+        if (m_progressStore.clear(m_catalog, &error)) {
+            m_exam->clearProgress();
+            m_status->setText(tr("Lernfortschritt zurückgesetzt"));
+        } else {
+            QMessageBox::warning(this, tr("Zurücksetzen fehlgeschlagen"), error);
+        }
+    });
+
     auto *quitAction = new QAction(tr("&Beenden"), this);
     quitAction->setShortcut(QKeySequence::Quit);
     connect(quitAction, &QAction::triggered, this, &QWidget::close);
@@ -84,6 +114,8 @@ void MainWindow::buildUi()
     QMenu *fileMenu = menuBar()->addMenu(tr("&Datei"));
     fileMenu->addAction(openAction);
     fileMenu->addAction(reloadAction);
+    fileMenu->addSeparator();
+    fileMenu->addAction(resetProgressAction);
     fileMenu->addSeparator();
     fileMenu->addAction(quitAction);
 
@@ -122,8 +154,115 @@ void MainWindow::buildUi()
     m_tabs->addTab(m_exam, tr("Prüfung"));
     setCentralWidget(m_tabs);
 
+    connect(m_exam, &ExamWidget::progressChanged, this, [this] { saveProgress(); });
+    connect(m_exam, &ExamWidget::examFinished, this, &MainWindow::showResult);
+
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
     statusBar()->addWidget(m_status, 1);
+}
+
+/// Reads the learning progress that belongs to this catalog. A progress file
+/// that belongs to an earlier revision of the catalog is not applied, because
+/// the questions may have been reworded or replaced by hand.
+/// Shows the graded paper: the points of every Prüfungsteil against its own
+/// pass mark, and which parts have to be repeated orally.
+void MainWindow::showResult(const ExamResult &result)
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Ergebnis der Prüfung"));
+    dialog.resize(780, 480);
+
+    auto *layout = new QVBoxLayout(&dialog);
+
+    auto *headline = new QLabel(&dialog);
+    headline->setWordWrap(true);
+    if (result.passed) {
+        headline->setText(tr("<b>Bestanden.</b> %1 von %2 Punkten.")
+                              .arg(result.achievedPoints)
+                              .arg(result.maxPoints));
+    } else {
+        headline->setText(tr("<b>Nicht bestanden.</b> %1 von %2 Punkten. Bestehen je "
+                             "Prüfungsteil ab %3 Punkten.")
+                              .arg(result.achievedPoints)
+                              .arg(result.maxPoints)
+                              .arg(result.parts.isEmpty() ? 19 : result.parts.first().passScore));
+    }
+    layout->addWidget(headline);
+
+    if (!result.passed && !result.parts.isEmpty() && !result.failedParts().isEmpty()) {
+        auto *hint = new QLabel(&dialog);
+        hint->setWordWrap(true);
+        hint->setText(tr("Nicht bestanden: Prüfungsteil %1. Dieser Teil ist mündlich "
+                         "nachzuprüfen; die übrigen Teile müssen nicht wiederholt werden.")
+                          .arg(result.failedParts().join(QStringLiteral(", "))));
+        layout->addWidget(hint);
+    }
+
+    auto *table = new QTableWidget(&dialog);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({tr("Prüfungsteil"), tr("Punkte"), tr("Bestehen"),
+                                      tr("falsch"), tr("offen")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    for (const PartResult &part : result.parts) {
+        const int row = table->rowCount();
+        table->insertRow(row);
+        table->setItem(row, 0,
+                       new QTableWidgetItem(QStringLiteral("%1 — %2").arg(part.letter, part.title)));
+        table->setItem(row, 1, new QTableWidgetItem(QStringLiteral("%1 / %2")
+                                                        .arg(part.achievedPoints)
+                                                        .arg(part.maxPoints)));
+        table->setItem(row, 2, new QTableWidgetItem(QString::number(part.passScore)));
+        table->setItem(row, 3, new QTableWidgetItem(QString::number(part.wrongAnswers)));
+        table->setItem(row, 4, new QTableWidgetItem(QString::number(part.unanswered)));
+        if (!part.passed()) {
+            for (int column = 0; column < table->columnCount(); ++column)
+                table->item(row, column)->setBackground(QColor(0xff, 0xe0, 0xe0));
+        }
+    }
+    table->resizeColumnsToContents();
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+
+    dialog.exec();
+}
+
+void MainWindow::loadProgress()
+{
+    m_progressStore = ProgressStore(ProgressStore::defaultPath(m_catalog));
+    const ProgressLoad loaded = m_progressStore.load(m_catalog);
+
+    if (!loaded.error.isEmpty()) {
+        m_status->setText(tr("Fortschritt nicht geladen: %1").arg(loaded.error));
+        return;
+    }
+    if (loaded.discardedDueToCatalogChange) {
+        QMessageBox::information(
+            this, tr("Fortschritt zurückgesetzt"),
+            tr("Der Katalog wurde seit dem letzten Bearbeiten geändert. Der bisherige "
+               "Lernfortschritt passt nicht mehr zu den Fragen und wurde verworfen. "
+               "Der neue Fortschritt wird ab dem nächsten Training aufgebaut."));
+        m_exam->clearProgress();
+        m_exam->setProgress({});
+        return;
+    }
+    if (loaded.droppedStates > 0) {
+        m_status->setText(tr("%1 Lernstände zu entfernten Fragen wurden verworfen")
+                              .arg(loaded.droppedStates));
+    }
+    m_exam->setProgress(loaded.states);
+}
+
+void MainWindow::saveProgress()
+{
+    if (m_catalogPath.isEmpty())
+        return;
+    QString error;
+    if (!m_progressStore.save(m_catalog, m_exam->scheduler().states(), &error))
+        m_status->setText(tr("Fortschritt nicht gespeichert: %1").arg(error));
 }
 
 bool MainWindow::openCatalog(const QString &path)
@@ -142,6 +281,7 @@ bool MainWindow::openCatalog(const QString &path)
     m_catalog = catalog;
     m_catalogPath = path;
     m_exam->setCatalog(&m_catalog, path);
+    loadProgress();
     populateTree();
     updateStatus();
 

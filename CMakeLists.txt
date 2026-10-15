@@ -36,6 +36,7 @@ add_library(hrt_core STATIC
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
     src/learning/Scheduler.cpp
+    src/learning/ProgressStore.cpp
     src/exam/PaperBuilder.cpp
     src/exam/ExamSession.cpp)
 
@@ -125,6 +126,10 @@ if(Qt6Test_FOUND)
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         endforeach()
     endif()
+
+    add_executable(tst_progress tests/tst_progress.cpp)
+    target_link_libraries(tst_progress PRIVATE hrt_core Qt6::Test)
+    add_test(NAME progress COMMAND tst_progress)
 
     add_executable(tst_exam tests/tst_exam.cpp)
     target_link_libraries(tst_exam PRIVATE hrt_core Qt6::Test)

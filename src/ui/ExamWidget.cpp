@@ -8,17 +8,15 @@
 
 #include "ImageLoader.h"
 #include "exam/PaperBuilder.h"
+#include "learning/Scheduler.h"
 
 #include <QAbstractButton>
 #include <QLayout>
 #include <QButtonGroup>
 #include <QCheckBox>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QHBoxLayout>
-#include <QHeaderView>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPainter>
@@ -27,7 +25,6 @@
 #include <QRadioButton>
 #include <QScrollArea>
 #include <QSpinBox>
-#include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -219,6 +216,16 @@ void ExamWidget::activateAnswerArea()
 QPixmap ExamWidget::renderImage(const QString &relativePath) const
 {
     return images::load(QDir(m_catalogDir), relativePath);
+}
+
+void ExamWidget::setProgress(const QVector<QuestionState> &states)
+{
+    m_scheduler = Scheduler(states);
+}
+
+void ExamWidget::clearProgress()
+{
+    m_scheduler.reset();
 }
 
 bool ExamWidget::startExam()
@@ -505,74 +512,6 @@ void ExamWidget::applyResultToScheduler(const ExamResult &result)
     Q_UNUSED(result)
 }
 
-void ExamWidget::showResult(const ExamResult &result)
-{
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("Ergebnis der Prüfung"));
-    dialog.resize(760, 480);
-
-    auto *layout = new QVBoxLayout(&dialog);
-
-    auto *headline = new QLabel(&dialog);
-    headline->setWordWrap(true);
-    if (result.passed) {
-        headline->setText(tr("<b>Bestanden.</b> %1 von %2 Punkten.")
-                              .arg(result.achievedPoints)
-                              .arg(result.maxPoints));
-    } else {
-        headline->setText(
-            tr("<b>Nicht bestanden.</b> %1 von %2 Punkten. Bestehen je Prüfungsteil ab "
-               "%3 Punkten.")
-                .arg(result.achievedPoints)
-                .arg(result.maxPoints)
-                .arg(result.parts.isEmpty() ? 19 : result.parts.first().passScore));
-    }
-    layout->addWidget(headline);
-
-    if (!result.passed && !result.parts.isEmpty()) {
-        auto *hint = new QLabel(&dialog);
-        hint->setWordWrap(true);
-        hint->setText(
-            tr("Nicht bestanden: Prüfungsteil %1. Dieser Teil ist mündlich nachzuprüfen; "
-               "in den übrigen Teilen mussten Sie nicht wiederholen.")
-                .arg(result.failedParts().join(QStringLiteral(", "))));
-        layout->addWidget(hint);
-    }
-
-    auto *table = new QTableWidget(&dialog);
-    table->setColumnCount(5);
-    table->setHorizontalHeaderLabels({tr("Prüfungsteil"), tr("Punkte"), tr("Bestehen"),
-                                      tr("falsch"), tr("offen")});
-    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    for (const PartResult &part : result.parts) {
-        const int row = table->rowCount();
-        table->insertRow(row);
-        table->setItem(row, 0, new QTableWidgetItem(
-                                  QStringLiteral("%1 — %2")
-                                      .arg(part.letter, part.title)));
-        table->setItem(row, 1,
-                       new QTableWidgetItem(QStringLiteral("%1 / %2")
-                                                .arg(part.achievedPoints)
-                                                .arg(part.maxPoints)));
-        table->setItem(row, 2, new QTableWidgetItem(QString::number(part.passScore)));
-        table->setItem(row, 3, new QTableWidgetItem(QString::number(part.wrongAnswers)));
-        table->setItem(row, 4, new QTableWidgetItem(QString::number(part.unanswered)));
-        if (!part.passed()) {
-            for (int column = 0; column < table->columnCount(); ++column)
-                table->item(row, column)->setBackground(QColor(0xff, 0xe0, 0xe0));
-        }
-    }
-    table->resizeColumnsToContents();
-    layout->addWidget(table, 1);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-
-    dialog.exec();
-}
-
 void ExamWidget::finishExam()
 {
     if (!m_session)
@@ -592,7 +531,8 @@ void ExamWidget::finishExam()
 
     const ExamResult result = m_session->evaluate();
     applyResultToScheduler(result);
-    showResult(result);
+    emit examFinished(result);
+    emit progressChanged(m_scheduler);
 
     m_session.reset();
     m_current = 0;

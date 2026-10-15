@@ -8,6 +8,7 @@
 #include "CatalogXml.h"
 
 #include <QFile>
+#include <QCryptographicHash>
 #include <QSaveFile>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>

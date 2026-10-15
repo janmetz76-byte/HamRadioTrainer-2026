@@ -9,6 +9,8 @@
 
 #include "core/Catalog.h"
 #include "core/CatalogValidator.h"
+#include "exam/ExamSession.h"
+#include "learning/ProgressStore.h"
 
 #include <QMainWindow>
 #include <QVector>
@@ -39,6 +41,9 @@ public:
     bool openCatalog(const QString &path);
 
 private:
+    void loadProgress();
+    void saveProgress();
+    void showResult(const ExamResult &result);
     void buildUi();
     void populateTree();
     void showQuestion(QTreeWidgetItem *item);
@@ -49,6 +54,7 @@ private:
     QString m_catalogPath;
     QTabWidget *m_tabs = nullptr;
     ExamWidget *m_exam = nullptr;
+    ProgressStore m_progressStore{ProgressStore(QString())};
     QTreeWidget *m_tree = nullptr;
     QPlainTextEdit *m_details = nullptr;
     QLabel *m_status = nullptr;

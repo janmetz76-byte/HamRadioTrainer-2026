@@ -347,11 +347,35 @@ Erledigt:
   mit Hinweis auf die mündliche Nachprüfung
 * Oberfläche mit Katalogbrowser und Prüfungsansicht, SVG-Frage- und
   Antwortbildern, Rückmeldung an die Lernlogik
-* Testsuite (53 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
+  gebunden an den Prüfsummen-Abdruck der Katalogdatei
+* Testsuite (68 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+
+### Lernfortschritt
+
+Der Fortschritt liegt je Prüfung im Anwendungsdatenverzeichnis, nicht im
+Katalog, weil die Kataloge bearbeitbar und Teil der Auslieferung sind:
+
+| System | Pfad |
+|--------|------|
+| Linux | `~/.local/share/HamRadioTrainer2026/fortschritt-de-e.json` |
+| Windows | `%APPDATA%\HamRadioTrainer2026\fortschritt-de-e.json` |
+
+Die Datei wird nach jeder ausgewerteten Prüfung und beim Beenden atomar
+geschrieben. Sie enthält Leitner-Ordner, Trefferquote, Fälligkeit,
+Selbsteinschätzung und den SHA-256-Abdruck der Katalogdatei, zu der sie gehört.
+
+**Wird der Katalog von Hand geändert, gilt der Fortschritt als veraltet und wird
+verworfen.** Das ist beabsichtigt: nach dem Umschreiben einer Frage wäre ihr alter
+Ordner sonst eine falsche Aussage darüber, wie gut sie beherrscht wird. Nach dem
+Verwerfen baut sich der Fortschritt neu auf. Lernstände zu Fragen, die es im
+Katalog nicht mehr gibt, werden beim Laden ebenfalls verworfen.
+
+Unter *Datei* lässt sich der Fortschritt bewusst zurücksetzen.
 
 Noch offen:
 
-* Lernansicht mit Statistik und Fortschritt, Speicherung des Lernstands
+* Lernansicht mit Statistik und Fortschritt
 * Katalogpflege in der Anwendung
 * Darstellung der LaTeX-Formeln (219 Fragen der Klasse A)
 * mündliche Nachprüfung als eigener Prüfungsteil-Generator

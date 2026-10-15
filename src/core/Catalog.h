@@ -167,6 +167,11 @@ struct CatalogMetadata
 
 struct Catalog
 {
+    /// SHA-256 over the catalog document, filled in when it is read and never
+    /// written back. Learning progress is bound to this digest, so hand edited
+    /// catalogs do not silently keep the progress of an earlier revision.
+    QString sourceDigest;
+
     int schemaVersion = 1;
     CatalogMetadata metadata;
     QVector<Part> parts;
