@@ -1,0 +1,44 @@
+# Build-Verzeichnisse
+/build/
+/build-*/
+/dist/
+/out/
+*.user
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+*_autogen/
+
+# Compiler / Linker
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Qt / IDE
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+.qmake.stash
+Makefile
+*.pro.user
+.idea/
+.vscode/
+*.kdev4
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Lokale Lernstatistiken und Konfiguration des Anwenders
+*.ini
+!data/**/*.ini

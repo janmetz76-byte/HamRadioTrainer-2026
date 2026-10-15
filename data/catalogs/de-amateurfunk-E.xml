@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BEISPIELDATEN - keine amtlichen BNetzA-Fragen.
+  Dient nur als Formatvorlage für die Erfassung und als Testdatensatz.
+  Alle IDs muessen dokumentweit eindeutig sein.
+-->
+<catalog schemaVersion="1">
+  <metadata>
+    <title>Prüfungskatalog Klasse E - Beispiel</title>
+    <examClass>E</examClass>
+    <examId>DE-E</examId>
+    <authority>BNetzA (Formatvorlage)</authority>
+    <catalogVersion>2026-01</catalogVersion>
+    <validFrom>2026-01-01</validFrom>
+    <validUntil>2028-12-31</validUntil>
+    <language>de</language>
+    <sourceUrl>https://www.bnetza.de/</sourceUrl>
+    <notes>Platzhalter. Freitext wird vor der Veroeffentlichung durch geprueftes Material ersetzt.</notes>
+  </metadata>
+
+  <parts>
+    <part id="DE-E-1" title="Teil 1" order="1">
+      <section id="DE-E-1-1" title="Recht" order="1">
+        <!-- selection.questions = Fragenanzahl, selection.errorPoints = Fehlerpunkte,
+             beide Werte stammen aus der amtlichen Pruefungsordnung. -->
+        <selection questions="3" errorPoints="360"/>
+        <chapters>
+          <chapter id="DE-E-1-1-1" title="Allgemeines" order="1">
+            <questions>
+              <question id="DE-E-1-1-1-001" order="1" type="single" points="2">
+                <text>Wer darf eine Amateurfunksendestation betreiben?</text>
+                <answers>
+                  <answer id="DE-E-1-1-1-001-a" order="1" correct="true" text="Nur Inhaber einer gültigen Amateurfunkzulassung"/>
+                  <answer id="DE-E-1-1-1-001-b" order="2" correct="false" text="Jeder, der die technischen Voraussetzungen erfüllt"/>
+                  <answer id="DE-E-1-1-1-001-c" order="3" correct="false" text="Jede Betriebsstätte mit einer eigenen Postanschrift"/>
+                  <answer id="DE-E-1-1-1-001-d" order="4" correct="false" text="Alle Besitzer eines Funkgeräts mit Sendeanteil"/>
+                </answers>
+                <explanation>Ohne Zulassung ist das Betreiben einer Sendeanlage unzulaessig.</explanation>
+                <history>
+                  <addedOn>2026-01-01</addedOn>
+                </history>
+              </question>
+
+              <question id="DE-E-1-1-1-002" order="2" type="single" points="3">
+                <text>Wie lange darf eine Amateurfunkzulassung hoechstens zurueckgezogen bleiben?</text>
+                <answers>
+                  <answer id="DE-E-1-1-1-002-a" order="1" correct="false" text="Unbefristet"/>
+                  <answer id="DE-E-1-1-1-002-b" order="2" correct="true" text="Die gesetzlich vorgeschriebene Hoechstdauer"/>
+                  <answer id="DE-E-1-1-1-002-c" order="3" correct="false" text="Genau ein Jahr"/>
+                  <answer id="DE-E-1-1-1-002-d" order="4" correct="false" text="Bis zum naechsten Prüfungstermin"/>
+                </answers>
+                <history>
+                  <addedOn>2026-01-01</addedOn>
+                </history>
+              </question>
+            </questions>
+          </chapter>
+
+          <chapter id="DE-E-1-1-2" title="Frequenznutzung" order="2">
+            <questions>
+              <question id="DE-E-1-1-2-001" order="1" type="multiple" points="3">
+                <text>Welche Angaben gehoeren zu einem Funkrufzeichen?</text>
+                <answers>
+                  <answer id="DE-E-1-1-2-001-a" order="1" correct="true" text="Persoenliche Kennung"/>
+                  <answer id="DE-E-1-1-2-001-b" order="2" correct="false" text="Seriennummer des Geraets"/>
+                  <answer id="DE-E-1-1-2-001-c" order="3" correct="true" text="Angabe des Betriebsortes"/>
+                  <answer id="DE-E-1-1-2-001-d" order="4" correct="false" text="Zulassungsnummer des Herstellers"/>
+                </answers>
+                <explanation>Mehrfachauswahl: mehrere Antworten koennen richtig sein.</explanation>
+                <history>
+                  <addedOn>2026-01-01</addedOn>
+                </history>
+              </question>
+
+              <question id="DE-E-1-1-2-002" order="2" type="single" points="2" locked="true">
+                <text>Frage aus dem alten, nicht mehr gueltigen Fragenstand.</text>
+                <answers>
+                  <answer id="DE-E-1-1-2-002-a" order="1" correct="true" text="Antwort A"/>
+                  <answer id="DE-E-1-1-2-002-b" order="2" correct="false" text="Antwort B"/>
+                  <answer id="DE-E-1-1-2-002-c" order="3" correct="false" text="Antwort C"/>
+                  <answer id="DE-E-1-1-2-002-d" order="4" correct="false" text="Antwort D"/>
+                </answers>
+                <history>
+                  <addedOn>2015-06-26</addedOn>
+                  <retiredOn>2026-01-01</retiredOn>
+                </history>
+              </question>
+            </questions>
+          </chapter>
+        </chapters>
+      </section>
+
+      <section id="DE-E-1-2" title="Technik" order="2">
+        <selection questions="1" errorPoints="360"/>
+        <chapters>
+          <chapter id="DE-E-1-2-1" title="Betriebsarten" order="1">
+            <questions>
+              <question id="DE-E-1-2-1-001" order="1" type="single" points="2">
+                <text>Welche Betriebsart uebertraegt Sprachinformation?</text>
+                <answers>
+                  <answer id="DE-E-1-2-1-001-a" order="1" correct="true" text="SSB"/>
+                  <answer id="DE-E-1-2-1-001-b" order="2" correct="false" text="CW"/>
+                  <answer id="DE-E-1-2-1-001-c" order="3" correct="false" text="FSK"/>
+                  <answer id="DE-E-1-2-1-001-d" order="4" correct="false" text="RTTY"/>
+                </answers>
+                <history>
+                  <addedOn>2026-01-01</addedOn>
+                </history>
+              </question>
+            </questions>
+          </chapter>
+        </chapters>
+      </section>
+    </part>
+  </parts>
+</catalog>

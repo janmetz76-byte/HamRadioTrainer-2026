@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ham Radio Trainer - catalog schema, version 1
+
+  Deliberate design constraints:
+    * plain text XML, no encryption, no obfuscation, no binary containers
+    * hand-editable in any editor and diffable in git
+    * stable element names (English) so that tooling stays language neutral
+
+  Element and attribute names are English on purpose. The user interface and
+  all documentation are German; the data format is not.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           elementFormDefault="qualified">
+
+  <xs:annotation>
+    <xs:documentation>
+      Root element "catalog" describes one question catalog for exactly one
+      German amateur radio examination class (N, E or A).
+    </xs:documentation>
+  </xs:annotation>
+
+  <!-- ==================== catalog ==================== -->
+
+  <xs:element name="catalog">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="metadata"/>
+        <xs:element ref="parts"/>
+      </xs:sequence>
+      <xs:attribute name="schemaVersion" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ==================== metadata ==================== -->
+
+  <xs:element name="metadata">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="title"       type="xs:string"/>
+        <xs:element name="examClass"   type="examClassType"/>
+        <xs:element name="examId"      type="xs:string"/>
+        <xs:element name="authority"   type="xs:string"/>
+        <xs:element name="catalogVersion" type="xs:string"/>
+        <xs:element name="validFrom"   type="xs:date"/>
+        <xs:element name="validUntil"  type="xs:date" minOccurs="0"/>
+        <xs:element name="language"    type="languageType" minOccurs="0"/>
+        <xs:element name="sourceUrl"   type="xs:anyURI" minOccurs="0"/>
+        <xs:element name="notes"       type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- N = Novize, E = Einsteiger, A = Allgemein -->
+  <xs:simpleType name="examClassType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="N"/>
+      <xs:enumeration value="E"/>
+      <xs:enumeration value="A"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="languageType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="de"/>
+      <xs:enumeration value="en"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ==================== parts ==================== -->
+
+  <xs:element name="parts">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="part" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="part">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="section" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="id"    type="xs:ID" use="required"/>
+      <xs:attribute name="title" type="xs:string" use="required"/>
+      <xs:attribute name="order" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ==================== sections ==================== -->
+
+  <xs:element name="section">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="selection" type="selectionType" minOccurs="0"/>
+        <xs:element ref="chapters"/>
+      </xs:sequence>
+      <xs:attribute name="id"    type="xs:ID" use="required"/>
+      <xs:attribute name="title" type="xs:string" use="required"/>
+      <xs:attribute name="order" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- How the exam simulator draws a paper for this section. -->
+  <xs:complexType name="selectionType">
+    <xs:attribute name="questions"    type="xs:nonNegativeInteger" use="required"/>
+    <xs:attribute name="errorPoints"  type="xs:nonNegativeInteger" use="optional"/>
+  </xs:complexType>
+
+  <!-- ==================== chapters ==================== -->
+
+  <xs:element name="chapters">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="chapter" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="chapter">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="questions"/>
+      </xs:sequence>
+      <xs:attribute name="id"    type="xs:ID" use="required"/>
+      <xs:attribute name="title" type="xs:string" use="required"/>
+      <xs:attribute name="order" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ==================== questions ==================== -->
+
+  <xs:element name="questions">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="question" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="question">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="text"        type="xs:string"/>
+        <xs:element ref="answers"/>
+        <xs:element name="image"       type="relativePathType" minOccurs="0"/>
+        <xs:element name="explanation" type="xs:string" minOccurs="0"/>
+        <xs:element ref="history" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="id"     type="xs:ID" use="required"/>
+      <xs:attribute name="order"  type="xs:positiveInteger" use="required"/>
+      <!-- "single": exactly one correct answer, "multiple": one or more -->
+      <xs:attribute name="type"   type="questionType" use="required"/>
+      <!-- Fehlerpunkte: points deducted per wrong answer in the real exam -->
+      <xs:attribute name="points" type="xs:nonNegativeInteger" use="required"/>
+      <!-- Gesperrt: question is excluded from generated papers -->
+      <xs:attribute name="locked" type="xs:boolean" use="optional" default="false"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:simpleType name="questionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="single"/>
+      <xs:enumeration value="multiple"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:element name="answers">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="answer" minOccurs="2" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="answer">
+    <xs:complexType>
+      <xs:attribute name="id"      type="xs:ID" use="required"/>
+      <xs:attribute name="text"    type="xs:string" use="required"/>
+      <xs:attribute name="correct" type="xs:boolean" use="required"/>
+      <xs:attribute name="order"   type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ==================== revision history ==================== -->
+
+  <xs:element name="history">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="addedOn"   type="xs:date"/>
+        <xs:element name="changedOn" type="xs:date" minOccurs="0"/>
+        <xs:element name="retiredOn" type="xs:date" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ==================== simple types ==================== -->
+
+  <!-- Relative, forward-slash separated, never absolute and never escaping. -->
+  <xs:simpleType name="relativePathType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z0-9._\-/]+"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

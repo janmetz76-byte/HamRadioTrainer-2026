@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BEISPIELDATEN - keine amtlichen BNetzA-Fragen.
+  Klasse N (Novize). Formatvorlage und Testdatensatz.
+-->
+<catalog schemaVersion="1">
+  <metadata>
+    <title>Prüfungskatalog Klasse N - Beispiel</title>
+    <examClass>N</examClass>
+    <examId>DE-N</examId>
+    <authority>BNetzA (Formatvorlage)</authority>
+    <catalogVersion>2026-01</catalogVersion>
+    <validFrom>2026-01-01</validFrom>
+    <language>de</language>
+    <sourceUrl>https://www.bnetza.de/</sourceUrl>
+    <notes>Platzhalter. Freitext wird vor der Veroeffentlichung durch geprueftes Material ersetzt.</notes>
+  </metadata>
+
+  <parts>
+    <part id="DE-N-1" title="Teil 1" order="1">
+      <section id="DE-N-1-1" title="Grundlagen" order="1">
+        <!-- selection.questions = Fragenanzahl, selection.errorPoints = Fehlerpunkte,
+             beide Werte stammen aus der amtlichen Pruefungsordnung. -->
+        <selection questions="1"/>
+        <chapters>
+          <chapter id="DE-N-1-1-1" title="Begriffe" order="1">
+            <questions>
+              <question id="DE-N-1-1-1-001" order="1" type="single" points="1">
+                <text>Beispielhafte Einstiegsfrage fuer Klasse N.</text>
+                <answers>
+                  <answer id="DE-N-1-1-1-001-a" order="1" correct="true" text="Antwort A"/>
+                  <answer id="DE-N-1-1-1-001-b" order="2" correct="false" text="Antwort B"/>
+                  <answer id="DE-N-1-1-1-001-c" order="3" correct="false" text="Antwort C"/>
+                  <answer id="DE-N-1-1-1-001-d" order="4" correct="false" text="Antwort D"/>
+                </answers>
+                <history>
+                  <addedOn>2026-01-01</addedOn>
+                </history>
+              </question>
+            </questions>
+          </chapter>
+        </chapters>
+      </section>
+    </part>
+  </parts>
+</catalog>

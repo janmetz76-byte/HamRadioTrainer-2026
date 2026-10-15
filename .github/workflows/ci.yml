@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# HamRadioTrainer 2026 - Neu aufgebaut von Jan DC6DX
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtbase'
+          cache: true
+
+      - name: MSVC-Umgebung einrichten
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: CMake konfigurieren
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ steps.qt.outputs.qtpath }}
+
+      - name: Bauen
+        run: cmake --build build --config Release
+
+      - name: Tests ausführen
+        working-directory: build
+        run: ctest --output-on-failure -C Release
+
+      - name: Katalogwerkzeug prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL=$(find build -name 'hrt-catalog-tool*' -type f | head -1)
+          "$TOOL" data/catalogs/*.xml
+
+      - name: Kataloge gegen das Schema prüfen
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          for f in data/catalogs/*.xml; do
+            xmllint --noout --schema schema/catalog.xsd "$f"
+          done
+
+      - name: Installieren
+        run: cmake --install build --prefix dist --config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HamRadioTrainer2026-${{ matrix.os }}
+          path: dist
