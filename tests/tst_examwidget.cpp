@@ -5,6 +5,7 @@
 // under the terms of the GNU General Public License as published by the Free
 // Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "ExamWidget.h"
+#include "AnswerView.h"
 
 #include "core/CatalogXml.h"
 #include "learning/ProgressStore.h"
@@ -67,6 +68,8 @@ private slots:
     void examPresentsTheFirstQuestionOfTheFirstPart();
     void trainingPaperHasNoPassMarkInTheHeader();
     void answersCanBeSelectedAndReplaced();
+    void imageOnlyAnswersShowTheirImageNextToTheChoice();
+    void clickingAnAnswerImageSelectsIt();
     void catalogChangeDiscardsTheRunningPaper();
     void progressSurvivesAFullSession();
 };
@@ -214,6 +217,95 @@ void ExamWidgetTest::answersCanBeSelectedAndReplaced()
     QVERIFY(second->isChecked());
     QVERIFY(!first->isChecked());
     QVERIFY(findLabel(&widget, QStringLiteral("1 von 5 beantwortet")) != nullptr);
+}
+
+void ExamWidgetTest::imageOnlyAnswersShowTheirImageNextToTheChoice()
+{
+    // Frage NI104 aus Klasse N hat vier Antworten, die nur aus einem
+    // Schaltbild bestehen. Das leere Textlabel durfte keinen Platz
+    // beanspruchen und das Bild von der Auswahl wegschieben.
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    const Question *question = nullptr;
+    for (Question *candidate : catalog.questions()) {
+        if (candidate && candidate->id == QStringLiteral("NI104")) {
+            question = candidate;
+            break;
+        }
+    }
+    QVERIFY2(question, "Frage NI104 nicht im Katalog N");
+    QVERIFY(!question->answers.isEmpty());
+    QVERIFY(question->answers.first().image.contains(QStringLiteral("NI104_a.svg")));
+    QVERIFY(question->answers.first().text.simplified().isEmpty());
+
+    AnswerView *view = new AnswerView;
+    QVector<int> order;
+    for (int i = 0; i < question->answers.size(); ++i)
+        order.append(i);
+    view->setQuestion(question, order, QDir(QStringLiteral(HRT_SOURCE_DIR "/data/catalogs")));
+    view->resize(700, 600);
+    view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view));
+
+    QList<QLabel *> imageLabels;
+    for (QLabel *label : view->findChildren<QLabel *>()) {
+        if (!label->pixmap().isNull())
+            imageLabels.append(label);
+    }
+    QVERIFY2(imageLabels.size() >= question->answers.size(),
+             qPrintable(QStringLiteral("nur %1 Bildlabels fuer %2 Antworten")
+                            .arg(imageLabels.size())
+                            .arg(question->answers.size())));
+
+    // Das Bild muss unmittelbar neben der Auswahl stehen, nicht weit weg auf
+    // der anderen Fensterseite.
+    const QList<QAbstractButton *> buttons = view->findChildren<QAbstractButton *>();
+    QVERIFY(!buttons.isEmpty());
+    const int buttonRight = buttons.first()->geometry().right();
+    const int imageLeft = imageLabels.first()->geometry().left();
+    QVERIFY2(imageLeft - buttonRight < 40,
+             qPrintable(QStringLiteral("Abstand zwischen Auswahl und Bild: %1 px")
+                            .arg(imageLeft - buttonRight)));
+    delete view;
+}
+
+void ExamWidgetTest::clickingAnAnswerImageSelectsIt()
+{
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    const Question *question = nullptr;
+    for (Question *candidate : catalog.questions()) {
+        if (candidate && candidate->id == QStringLiteral("NI104")) {
+            question = candidate;
+            break;
+        }
+    }
+    QVERIFY(question);
+
+    AnswerView *view = new AnswerView;
+    QVector<int> order;
+    for (int i = 0; i < question->answers.size(); ++i)
+        order.append(i);
+    view->setQuestion(question, order, QDir(QStringLiteral(HRT_SOURCE_DIR "/data/catalogs")));
+    view->resize(700, 600);
+    view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(view));
+
+    QLabel *image = nullptr;
+    for (QLabel *label : view->findChildren<QLabel *>()) {
+        if (!label->pixmap().isNull()) {
+            image = label;
+            break;
+        }
+    }
+    QVERIFY2(image, "kein Antwortbild gefunden");
+    const QList<QAbstractButton *> buttons = view->findChildren<QAbstractButton *>();
+    QVERIFY(!buttons.isEmpty());
+    QVERIFY(!buttons.first()->isChecked());
+
+    // Ein Klick auf das Bild muss antworten, sonst trifft man bei
+    // Bildfragen nur mit dem Finger auf einen fingerbreiten Punkt.
+    QTest::mouseClick(image, Qt::LeftButton, Qt::NoModifier, image->rect().center());
+    QVERIFY2(buttons.first()->isChecked(), "Klick auf das Bild hat nicht geantwortet");
+    delete view;
 }
 
 void ExamWidgetTest::catalogChangeDiscardsTheRunningPaper()

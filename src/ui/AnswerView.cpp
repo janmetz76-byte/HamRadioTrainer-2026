@@ -13,9 +13,38 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QLayout>
 #include <QPainter>
 #include <QRadioButton>
+
+namespace {
+
+/// Bild, das selbst antwortet.
+///
+/// QLabel hat erst ab Qt 6.9 ein clicked-Signal. Damit die Bildantworten
+/// unabhaengig von der Qt-Version anklickbar sind, faengt diese Klasse den
+/// Mausklick selbst ab.
+class ClickableImageLabel : public QLabel
+{
+    Q_OBJECT
+
+public:
+    using QLabel::QLabel;
+
+signals:
+    void activated();
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && rect().contains(event->pos()))
+            emit activated();
+        QLabel::mouseReleaseEvent(event);
+    }
+};
+
+} // namespace
 
 namespace hrt {
 namespace {
@@ -139,8 +168,12 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
                                        ? static_cast<QAbstractButton *>(new QCheckBox(row))
                                        : static_cast<QAbstractButton *>(new QRadioButton(row));
         control->setText(QString());
-        control->setToolTip(answer ? answer->text
-                                   : QObject::tr("Antwort %1").arg(position + 1));
+        // Ohne Text bleibt nur die Nummer als Fuehlfuellung, sonst haette der
+        // Knopf gar keinen Text und keinen Tooltip.
+        const QString answerHint = answer ? answer->text.simplified() : QString();
+        control->setToolTip(answerHint.isEmpty()
+                                ? QObject::tr("Antwort %1").arg(position + 1)
+                                : answerHint);
         rowLayout->addWidget(control, 0, Qt::AlignTop);
         if (auto *radio = qobject_cast<QRadioButton *>(control))
             group->addButton(radio, position);
@@ -150,18 +183,35 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         const QString answerText = answer
                                         ? answer->text
                                         : QObject::tr("Antwort %1").arg(position + 1);
-        auto *label = new QLabel(row);
-        label->setWordWrap(true);
-        setQuestionText(label, answerText.simplified(), question->textFormat);
-        rowLayout->addWidget(label, 1);
+
+        // Bei bildbehafteten Antworten ist der Text leer. Ein leeres Label
+        // mit Stretzfaktor wuerde trotzdem Platz beanspruchen und das Bild
+        // von der Auswahl wegschieben - genau dann, wo man es anklicken muss.
+        const QString plainText = answerText.simplified();
+        if (!plainText.isEmpty()) {
+            auto *label = new QLabel(row);
+            label->setWordWrap(true);
+            setQuestionText(label, plainText, question->textFormat);
+            rowLayout->addWidget(label, 1);
+        }
 
         const QPixmap answerImage = answer ? renderImage(answer->image) : QPixmap();
         if (!answerImage.isNull()) {
-            auto *imageLabel = new QLabel(row);
+            auto *imageLabel = new ClickableImageLabel(row);
             imageLabel->setPixmap(answerImage);
             imageLabel->setAlignment(Qt::AlignLeft);
-            imageLabel->setIndent(24);
+            // Ohne Text davor entfaellt der Einzug, der den Abstand zur
+            // Auswahl herstellt.
+            imageLabel->setIndent(plainText.isEmpty() ? 0 : 24);
+            imageLabel->setToolTip(QObject::tr("Antwort %1").arg(position + 1));
             rowLayout->addWidget(imageLabel, 1);
+
+            // Das Bild ist bei diesen Fragen das einzige, was man treffen
+            // kann. Es muss selbst antworten, sonst muesste man auf einen
+            // fingerbreiten Punkt links daneben zielen.
+            imageLabel->setCursor(Qt::PointingHandCursor);
+            connect(imageLabel, &ClickableImageLabel::activated, control,
+                    [control] { control->click(); });
         }
 
         // The mark belongs at the end of the row. Without adding it to the
