@@ -331,7 +331,7 @@ notwendig ist.
 
 ## Entwicklungstand
 
-Stand: alle 157 Tests in 14 Programmen sind grün. Die Anwendung ist
+Stand: alle 159 Tests in 14 Programmen sind grün. Die Anwendung ist
 funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
 und die Veröffentlichung.
 
@@ -356,7 +356,7 @@ Erledigt:
 * Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
   gebunden an den Prüfsummen-Abdruck der Katalogdatei
 * Formeln der 219 LaTeX-Fragen werden dargestellt
-* Testsuite (121 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Testsuite (159 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
 
 ### Lernfortschritt
 

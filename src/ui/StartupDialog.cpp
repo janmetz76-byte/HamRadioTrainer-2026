@@ -15,11 +15,48 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QVBoxLayout>
 #include <QPushButton>
 #include <QLabel>
+#include <QList>
 #include <QVBoxLayout>
 
 namespace hrt {
+
+namespace {
+
+/// Ausgeschriebene Namen der Pruefungsteile.
+///
+/// "V + B + N" sagt einem Lernenden nichts, der die Veruegung nicht kennt.
+/// Die Buchstaben stehen nur noch in den amtlichen Titeln der Kataloge, die
+/// Anzeige hier spricht Klartext.
+QString partName(int part)
+{
+    switch (part) {
+    case 0:
+        return QObject::tr("Vorschriften");
+    case 1:
+        return QObject::tr("Betriebstechnik");
+    case 2:
+        return QObject::tr("Technik Klasse N");
+    case 3:
+        return QObject::tr("Technik Klasse E");
+    case 4:
+        return QObject::tr("Technik Klasse A");
+    default:
+        return QObject::tr("Prüfungsteil %1").arg(part);
+    }
+}
+
+QString partList(const QVector<int> &parts)
+{
+    QStringList names;
+    for (int part : parts)
+        names.append(partName(part));
+    return names.join(QObject::tr(" und "));
+}
+
+} // namespace
 
 QVector<int> StartupDialog::partsForClass(const QString &examClass)
 {
@@ -32,29 +69,47 @@ QVector<int> StartupDialog::partsForClass(const QString &examClass)
     return {0, 1, 2, 3, 4};
 }
 
-namespace {
-
-/// The three examinations that exist, in the order they are offered.
-const char *const kClasses[] = {"N", "E", "A"};
-
-} // namespace
-
-QStringList StartupDialog::combinationLabels()
+QVector<StartupDialog::Combination> StartupDialog::combinations()
 {
-    // Die Beschriftung wird aus derselben Liste gebaut wie die Auswahl. Sie
-    // getrennt zu schreiben und dann die Klasse aus dem Text zu erraten war
-    /// genau der Fehler, der daraus alle fuenf Teile machte.
-    QStringList labels;
-    for (const char *klass : kClasses) {
-        QStringList teile;
-        for (int part : partsForClass(QString::fromLatin1(klass))) {
-            static const QString zeichen = QStringLiteral("VBNEA");
-            teile.append(QString(zeichen.at(part)));
+    // Reihenfolge: erst die Pruefungen von vorn, danach die Aufstiege. Das ist
+    // die Reihenfolge, in der jemand sie erlebt.
+    //
+    // Die Parts sind ueber alle drei Kataloge hinweg gleich nummeriert:
+    // 0 = V, 1 = B, 2 = N, 3 = E, 4 = A.
+    const QVector<int> vbn = {0, 1, 2};
+    const QVector<int> vbne = {0, 1, 2, 3};
+
+    return {
+        {tr("Klasse N — vollständige Prüfung"),
+         tr("Alle Teile von vorn."), QStringLiteral("N"), vbn},
+        {tr("Klasse E — vollständige Prüfung"),
+         tr("Alle Teile von vorn."), QStringLiteral("E"), vbne},
+        {tr("Klasse A — vollständige Prüfung"),
+         tr("Alle Teile von vorn."), QStringLiteral("A"), {0, 1, 2, 3, 4}},
+        {tr("Klasse N → E"), tr("Vorschriften, Betriebstechnik und Technik Klasse N wurden schon geprüft."),
+         QStringLiteral("E"), {3}},
+        {tr("Klasse N → A"), tr("Vorschriften, Betriebstechnik und Technik Klasse N wurden schon geprüft."),
+         QStringLiteral("A"), {3, 4}},
+        {tr("Klasse E → A"), tr("Vorschriften, Betriebstechnik sowie die Technik N und E wurden schon geprüft."),
+         QStringLiteral("A"), {4}},
+    };
+}
+
+QVector<StartupDialog::Combination> StartupDialog::combinationsFor(const Catalog &catalog)
+{
+    QVector<Combination> usable;
+    for (const Combination &combination : combinations()) {
+        bool present = true;
+        for (int part : combination.parts) {
+            if (part >= catalog.parts.size()) {
+                present = false;
+                break;
+            }
         }
-        labels.append(QStringLiteral("%1  (Klasse %2)").arg(teile.join(QStringLiteral(" + ")),
-                                                       QString::fromLatin1(klass)));
+        if (present)
+            usable.append(combination);
     }
-    return labels;
+    return usable;
 }
 
 StartupDialog::StartupDialog(const QStringList &catalogPaths, QWidget *parent)
@@ -90,21 +145,11 @@ StartupDialog::StartupDialog(const QStringList &catalogPaths, QWidget *parent)
 
     auto *partsBox = new QGroupBox(tr("Prüfungsteile"), this);
     auto *partsLayout = new QVBoxLayout(partsBox);
+    m_partsBox = partsBox;
+    m_partsLayout = partsLayout;
 
-    // Die Originalprogramm zeigte hier eine Liste der erlaubten Kombinationen
-    // (Klasse E, Erweiterungsprüfung E nach A, Klasse A). Das entspricht genau
-    // den Teilemengen der Verfügung.
-    for (int i = 0; i < combinationLabels().size(); ++i) {
-        QSet<int> combination;
-        for (int part : partsForClass(QString::fromLatin1(kClasses[i])))
-            combination.insert(part);
-        m_combinations.append(combination);
-
-        auto *box = new QCheckBox(combinationLabels().at(i), partsBox);
-        partsLayout->addWidget(box);
-        m_partBoxes.append(box);
-    }
-
+    // Muss vor dem ersten rebuildPartChoices() existieren: die Auswahl
+    // erklaert hier, wie viele Faelle der Katalog hergibt.
     m_hint = new QLabel(partsBox);
     m_hint->setWordWrap(true);
     m_hint->setStyleSheet(QStringLiteral("color: palette(mid);"));
@@ -140,51 +185,76 @@ StartupDialog::StartupDialog(const QStringList &catalogPaths, QWidget *parent)
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     // Vorauswahl: die Teile der gewaehlten Klasse.
-    connect(m_catalog, &QComboBox::currentIndexChanged, this, [this] { updateEnabledParts(); });
-    updateEnabledParts();
+    connect(m_catalog, &QComboBox::currentIndexChanged, this, [this] { rebuildPartChoices(); });
+    rebuildPartChoices();
 }
 
-void StartupDialog::updateEnabledParts()
+void StartupDialog::rebuildPartChoices()
 {
-    // Die Klasse ergibt sich aus dem Katalog; stehen mehrere zur Wahl, richtet
-    // sich die Vorauswahl nach dem ersten.
-    int wanted = -1;
+    for (QCheckBox *box : std::as_const(m_partBoxes)) {
+        m_partsLayout->removeWidget(box);
+        box->deleteLater();
+    }
+    m_partBoxes.clear();
+    m_shown.clear();
+
+    Catalog catalog;
+    QString error;
     const QString path = m_catalog->currentData().toString();
-    if (!path.isEmpty()) {
-        Catalog catalog;
-        QString error;
-        if (CatalogXml::load(path, &catalog, &error)) {
-            const QString klassen = examClassToString(catalog.metadata.examClass);
-            wanted = klassen == QStringLiteral("N") ? 0
-                     : klassen == QStringLiteral("E") ? 1
-                                                     : 2;
-        }
+    const bool loaded = !path.isEmpty() && CatalogXml::load(path, &catalog, &error);
+
+    // Welche Faelle ueberhaupt moeglich sind, haengt am Katalog: Die Klasse N
+    // enthaelt keinen Teil E, dort laesst sich also kein Aufstieg nach E
+    // anbieten.
+    m_shown = loaded ? combinationsFor(catalog) : QVector<Combination>();
+
+    for (const Combination &combination : m_shown) {
+        auto *box = new QCheckBox(
+            QStringLiteral("%1  —  %2").arg(combination.label, partList(combination.parts)),
+            m_partsBox);
+        if (!combination.note.isEmpty())
+            box->setToolTip(combination.note);
+        m_partsLayout->addWidget(box);
+        m_partBoxes.append(box);
     }
 
-    for (int i = 0; i < m_partBoxes.size(); ++i) {
-        m_partBoxes.at(i)->setChecked(i == wanted);
-        m_partBoxes.at(i)->setEnabled(!path.isEmpty());
+    // Vorauswahl: die vollstaendige Pruefung der Klasse des Katalogs.
+    QString klassen;
+    if (loaded)
+        klassen = examClassToString(catalog.metadata.examClass);
+    for (int i = 0; i < m_shown.size(); ++i) {
+        // Ein Aufstieg traegt eine Erklaerung, eine vollstaendige Pruefung
+        // nicht. Nur letztere soll vorgewaehlt sein.
+        m_partBoxes.at(i)->setChecked(m_shown.at(i).targetClass == klassen
+                                      && m_shown.at(i).note.isEmpty());
     }
-    m_hint->setText(path.isEmpty()
-                        ? tr("Ohne Katalog lässt sich keine Prüfung wählen.")
-                        : tr("Wählbar sind nur die Prüfungsteile, aus denen die gewählte "
-                             "Prüfung besteht."));
+    // Genau eine Auswahl muss immer stehen.
+    bool any = false;
+    for (QCheckBox *box : std::as_const(m_partBoxes))
+        any = any || box->isChecked();
+    if (!any && !m_partBoxes.isEmpty())
+        m_partBoxes.first()->setChecked(true);
+
+    m_hint->setText(loaded ? tr("%1 von %2 Fällen passen zu diesem Katalog. "
+                                "Nach bestandener Klasse entfallen die schon geprüften Teile.")
+                           : tr("Ohne Katalog lässt sich keine Prüfung wählen."));
 }
 
 void StartupDialog::accept()
 {
-    QSet<int> parts;
+    int chosen = -1;
     for (int i = 0; i < m_partBoxes.size(); ++i) {
         if (m_partBoxes.at(i)->isChecked())
-            parts = m_combinations.at(i);
+            chosen = i;
     }
-    if (parts.isEmpty()) {
+    if (chosen < 0) {
         m_hint->setText(tr("Bitte eine Prüfung auswählen."));
         return;
     }
 
+    const Combination &combination = m_shown.at(chosen);
     m_result.catalogPath = m_catalog->currentData().toString();
-    m_result.selectedParts = parts;
+    m_result.selectedParts = QSet<int>(combination.parts.begin(), combination.parts.end());
     m_result.examDate = m_date->date();
     m_result.accepted = true;
     QDialog::accept();

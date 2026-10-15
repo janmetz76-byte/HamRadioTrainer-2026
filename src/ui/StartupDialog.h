@@ -13,6 +13,8 @@
 
 class QCheckBox;
 class QComboBox;
+class QGroupBox;
+class QVBoxLayout;
 class QDateEdit;
 class QLabel;
 
@@ -48,25 +50,44 @@ public:
     /// Oeffentlich, damit der Test denselben Weg nimmt wie der Knopf.
     void accept() override;
 
-    /// The part combinations the Amtsblatt-Verfügung 29/2024 allows.
-    ///
-    /// Class N is made up of the parts V, B and N; class E adds E; class A
-    /// contains all five. Offering anything else would be a combination no
-    /// examination consists of.
+    /// One way of coming to the examination, as Amtsblatt-Verfügung 29/2024
+    /// puts it.
+    struct Combination
+    {
+        QString label;      ///< shown as a check box
+        QString note;       ///< why the learner does not need the other parts
+        QString targetClass;///< class the certificate is applied for
+        QVector<int> parts; ///< indexes into the catalog's part list
+    };
+
+    /// The parts needed for a full examination of the given class, without
+    /// any earlier certificate being credited.
     static QVector<int> partsForClass(const QString &examClass);
 
-    /// Every allowed combination, for the check boxes.
-    static QStringList combinationLabels();
+    /// All six cases the regulation describes: three examinations from
+    /// scratch and three ascents.
+    ///
+    /// 7.3 der Verfuegung laesst bereits bestandene Frageboegen weg: wer die
+    /// Klasse N hat, muss fuer die Klasse E nur noch E beantworten, wer die
+    /// Klasse N hat, fuer die Klasse A nur noch E und A, und wer die Klasse E
+    /// hat, fuer die Klasse A nur noch A. Ohne diese Aufstiegsfaelle
+    /// beantwortet der Assistent mehr, als die Verfuegung vorsieht.
+    static QVector<Combination> combinations();
+
+    /// Only the combinations whose parts all exist in the given catalog.
+    static QVector<Combination> combinationsFor(const Catalog &catalog);
 
 private:
-    void updateEnabledParts();
+    void rebuildPartChoices();
 
     Result m_result;
     QComboBox *m_catalog = nullptr;
     QVector<QCheckBox *> m_partBoxes;
     QLabel *m_hint = nullptr;
     QDateEdit *m_date = nullptr;
-    QVector<QSet<int>> m_combinations;
+    QVector<Combination> m_shown;
+    QGroupBox *m_partsBox = nullptr;
+    QVBoxLayout *m_partsLayout = nullptr;
 };
 
 } // namespace hrt
