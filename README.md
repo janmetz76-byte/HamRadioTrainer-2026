@@ -409,8 +409,8 @@ Katalogen selbst gemessen und ist klein:
 | | |
 |---|---|
 | Formelstellen | 355 |
-| Umgebungen (`\\begin{…}`) | keine |
-| Befehle | `\\lambda`, `\\Omega`, `\\eta`, `\\varphi`, `\\text`, `\\textrm`, `\\cdot`, `\\circ`, `\\frac`, `\\dfrac`, `\\sqrt`, `\\left`, `\\right` |
+| Umgebungen (`\begin{…}`) | keine |
+| Befehle | `\lambda`, `\Omega`, `\eta`, `\varphi`, `\text`, `\textrm`, `\cdot`, `\circ`, `\frac`, `\dfrac`, `\sqrt`, `\left`, `\right` |
 
 Damit rechtfertigt der Bestand keine vollständige TeX-Installation. `LatexFormatter`
 bildet genau diese Befehle auf Qt-Richtext ab – griechische Buchstaben als
@@ -427,8 +427,8 @@ Riss zeigen und nicht stillschweigend fehlen.
 Der Test `everyFormulaOfTheCatalogsRenders` prüft alle 356 Formeln der
 ausgelieferten Kataloge darauf, dass keinerlei Rückstriche übrig bleiben.
 
-Drei Stellen der Quelle schreiben Markup außerhalb jeder Formel (`4 \\mOhm`,
-`4,7 \\kiloOhm`, ein `\\glqq`). Der Import schreibt sie als `mΩ`, `kΩ` und
+Drei Stellen der Quelle schreiben Markup außerhalb jeder Formel (`4 \mOhm`,
+`4,7 \kiloOhm`, ein `\glqq`). Der Import schreibt sie als `mΩ`, `kΩ` und
 `„` in den Katalog, damit die von Hand zu bearbeitenden Dateien lesbar bleiben.
 
 Noch offen:
