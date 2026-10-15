@@ -94,6 +94,8 @@ if(Qt6Test_FOUND)
 
     add_executable(tst_scheduler tests/tst_scheduler.cpp)
     target_link_libraries(tst_scheduler PRIVATE hrt_core Qt6::Test)
+    target_compile_definitions(tst_scheduler PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME scheduler COMMAND tst_scheduler)
 endif()
 

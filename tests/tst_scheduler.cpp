@@ -6,6 +6,7 @@
 // Software Foundation, either version 3 of the License, or (at your option)
 // any later version.
 #include "core/Catalog.h"
+#include "core/CatalogXml.h"
 #include "exam/PaperBuilder.h"
 #include "learning/Scheduler.h"
 
@@ -73,6 +74,8 @@ class SchedulerTest : public QObject
     Q_OBJECT
 
 private slots:
+    void fullExamReproducesTheOfficialPaper();
+    void trainingPaperIsNotAFullExam();
     void newQuestionsAreAskedFirst();
     void secureQuestionsAreAskedLessOften();
     void unsureCorrectAnswerStillComesBack();
@@ -250,6 +253,106 @@ void SchedulerTest::answerOrderCanBeOverridden()
 
     const QVector<int> shortPattern = PaperBuilder::parseAnswerOrder(*question, QStringLiteral("B"));
     QCOMPARE(shortPattern, QVector<int>{1});
+}
+
+/// The full examination must reproduce the official exam of the
+/// Amtsblatt-Verfügung 29/2024: 25 questions per Prüfungsteil, passed at 19
+/// points per Prüfungsteil, six wrong answers tolerated per Prüfungsteil, and
+/// 45 minutes per sheet with 60 for class A.
+void SchedulerTest::fullExamReproducesTheOfficialPaper()
+{
+    const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
+
+    struct Expectation
+    {
+        const char *file;
+        int sheets;
+        int questions;    ///< total questions of the examination
+        int passScore;    ///< sum of the per sheet pass marks
+        int errorBudget;  ///< sum of the per sheet tolerances
+        int minutes;      ///< sum of the per sheet time limits
+    };
+    const QVector<Expectation> expectations = {
+        {"de-amateurfunk-N.xml", 3, 75, 57, 18, 135},
+        {"de-amateurfunk-E.xml", 4, 100, 76, 24, 180},
+        {"de-amateurfunk-A.xml", 5, 125, 95, 30, 240},
+    };
+
+    for (const Expectation &expectation : expectations) {
+        Catalog catalog;
+        QString error;
+        const QString path = QDir(base).filePath(QString::fromLatin1(expectation.file));
+        QVERIFY2(CatalogXml::load(path, &catalog, &error), qPrintable(error));
+
+        const PaperBuilder::Options options = PaperBuilder::examOptions(catalog);
+        QVERIFY(options.examMode);
+        QCOMPARE(options.questionsPerPart.size(), expectation.sheets);
+        for (int count : options.questionsPerPart)
+            QCOMPARE(count, 25);
+
+        const Scheduler scheduler;
+        const ExamPaper paper = PaperBuilder::build(catalog, scheduler, options, 20260924u);
+
+        QVERIFY(paper.isFullExam());
+        QCOMPARE(paper.parts.size(), expectation.sheets);
+        QCOMPARE(paper.questions.size(), expectation.questions);
+        QCOMPARE(paper.passScore, expectation.passScore);
+        QCOMPARE(paper.errorPointBudget, expectation.errorBudget);
+        QCOMPARE(paper.totalMinutes, expectation.minutes);
+
+        // Every question carries one point, so the maximum score equals the
+        // question count and exactly six wrong answers are still tolerated.
+        QCOMPARE(paper.totalPoints, expectation.questions);
+        QCOMPARE(paper.errorPointBudget, paper.totalPoints - paper.passScore);
+
+        // Every Prüfungsteil contributes its own share, no question is drawn
+        // twice, and only real letters appear.
+        const QStringList letters{QStringLiteral("V"), QStringLiteral("B"),
+                                  QStringLiteral("N"), QStringLiteral("E"),
+                                  QStringLiteral("A")};
+        QSet<QString> drawn;
+        for (int i = 0; i < paper.parts.size(); ++i) {
+            const PaperPartSummary &summary = paper.parts.at(i);
+            QVERIFY(letters.contains(summary.letter));
+            QCOMPARE(summary.questionCount, 25);
+            QCOMPARE(summary.maxPoints, 25);
+            QCOMPARE(summary.passScore, 19);
+            QCOMPARE(summary.errorPointBudget, 6);
+            QCOMPARE(summary.minutes, summary.letter == QLatin1String("A") ? 60 : 45);
+        }
+
+        for (const PaperQuestion &entry : paper.questions) {
+            QVERIFY(!drawn.contains(entry.questionId));
+            drawn.insert(entry.questionId);
+            QCOMPARE(entry.answerOrder.size(), 4);
+            QVERIFY(entry.answerOrder.size() > 0);
+        }
+
+        // Different seeds must not produce the same paper.
+        const ExamPaper other = PaperBuilder::build(catalog, scheduler, options, 1u);
+        bool differs = other.questions.size() != paper.questions.size();
+        for (int i = 0; !differs && i < paper.questions.size(); ++i)
+            differs = other.questions.at(i).questionId != paper.questions.at(i).questionId;
+        QVERIFY(differs);
+    }
+}
+
+/// A training paper drawn from one Prüfungsteil must not be reported as a full
+/// examination, because its limits do not apply.
+void SchedulerTest::trainingPaperIsNotAFullExam()
+{
+    Catalog catalog = makeCatalog(40);
+    PaperBuilder::Options options;
+    options.questionCount = 10;
+
+    const Scheduler scheduler;
+    const ExamPaper paper = PaperBuilder::build(catalog, scheduler, options, 7u);
+
+    QVERIFY(!paper.isFullExam());
+    QVERIFY(paper.parts.isEmpty());
+    QCOMPARE(paper.passScore, 0);
+    QCOMPARE(paper.totalMinutes, 0);
+    QCOMPARE(paper.questions.size(), 10);
 }
 
 void SchedulerTest::paperRespectsPruefungsteilQuotas()

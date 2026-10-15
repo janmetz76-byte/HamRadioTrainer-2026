@@ -31,12 +31,41 @@ struct PaperQuestion
     QVector<int> answerOrder;
 };
 
+/// One Prüfungsteil of a generated paper, with the limits that apply to it.
+struct PaperPartSummary
+{
+    QString partId;
+    /// Prüfungsteil letter, e.g. "V", "B", "N", "E", "A".
+    QString letter;
+    QString title;
+    int questionCount = 0;
+    int maxPoints = 0;
+    /// Points required in this Prüfungsteil, e.g. 19 of 25.
+    int passScore = 0;
+    /// Wrong answers still tolerated in this Prüfungsteil, e.g. 6 of 25.
+    int errorPointBudget = 0;
+    int minutes = 0;
+};
+
 /// A generated exam or training paper.
 struct ExamPaper
 {
     quint32 seed = 0;
     QVector<PaperQuestion> questions;
     int totalPoints = 0;
+
+    /// Per Prüfungsteil limits, filled in exam mode. Empty for training papers.
+    QVector<PaperPartSummary> parts;
+    /// Sum of the time limits of all Prüfungsteile.
+    int totalMinutes = 0;
+    /// Points required overall, e.g. 76 of 100 for a class E certificate.
+    int passScore = 0;
+    /// Wrong answers tolerated overall, e.g. 18 of 100 for class E.
+    int errorPointBudget = 0;
+
+    /// True when every Prüfungsteil of the catalog is represented with its full
+    /// official question count, i.e. the paper reproduces a real examination.
+    bool isFullExam() const;
 };
 
 /// Builds papers from a catalog and the learner's progress.
@@ -56,6 +85,9 @@ public:
         int errorPointBudget = 0;
         /// Ignore the due date and the recency penalty of the scheduler.
         bool reviewMode = false;
+        /// Reproduce a real examination: draw the official question count of
+        /// every Prüfungsteil of the catalog and apply its limits.
+        bool examMode = false;
     };
 
     /// Draws a paper. Locked and retired questions are never drawn.
@@ -70,6 +102,15 @@ public:
     /// Shuffles the answers of one question deterministically from the seed.
     static QVector<int> shuffledAnswerOrder(const Question &question, quint32 seed,
                                             const QString &questionId);
+
+    /// Builds the options that reproduce the official examination of a
+    /// catalog: the question count of every Prüfungsteil as declared in the
+    /// catalog. Parts without a declared count are skipped.
+    static Options examOptions(const Catalog &catalog);
+
+    /// Letter of a Prüfungsteil, taken from the last segment of its id
+    /// ("DE-E-teil4-e" -> "E"). Empty when the id does not end in one.
+    static QString partLetter(const Part &part);
 
     /// Parses an "E,A,B,D" pattern into answer indices of the given question.
     static QVector<int> parseAnswerOrder(const Question &question, const QString &pattern);

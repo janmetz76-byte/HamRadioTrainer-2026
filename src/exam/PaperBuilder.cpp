@@ -69,7 +69,39 @@ QVector<const Question *> drawWeighted(const QVector<const Question *> &pool,
     return picked;
 }
 
+/// A drawn question together with the Prüfungsteil it came from.
+struct Pick
+{
+    const Question *question = nullptr;
+    int partIndex = -1;
+};
+
 } // namespace
+
+bool ExamPaper::isFullExam() const
+{
+    if (parts.isEmpty())
+        return false;
+    for (const PaperPartSummary &part : parts)
+        if (part.questionCount <= 0 || part.passScore <= 0)
+            return false;
+    return passScore > 0 && totalMinutes > 0;
+}
+
+QString PaperBuilder::partLetter(const Part &part)
+{
+    const QString suffix = part.id.section(QLatin1Char('-'), -1);
+    return suffix.size() == 1 ? suffix.toUpper() : QString();
+}
+
+PaperBuilder::Options PaperBuilder::examOptions(const Catalog &catalog)
+{
+    Options options;
+    options.examMode = true;
+    for (const Part &part : catalog.parts)
+        options.questionsPerPart.append(part.selection.questions);
+    return options;
+}
 
 QVector<int> PaperBuilder::shuffledAnswerOrder(const Question &question, quint32 seed,
                                               const QString &questionId)
@@ -107,9 +139,34 @@ ExamPaper PaperBuilder::build(const Catalog &catalog, const Scheduler &scheduler
     ExamPaper paper;
     paper.seed = seed;
 
-    QVector<const Question *> picked;
+    QVector<Pick> picks;
 
-    const bool perPart = !options.questionsPerPart.isEmpty();
+    // Collect the drawable questions of one Prüfungsteil together with their
+    // weights. Locked and retired questions never enter the pool.
+    const auto poolForPart = [&scheduler, &options](const Part &part, QVector<double> *weights) {
+        QVector<const Question *> pool;
+        for (const Section &section : part.sections) {
+            for (const Question *question : section.questions()) {
+                if (!question->isActive())
+                    continue;
+                pool.append(question);
+                weights->append(options.reviewMode
+                                    ? 1.0
+                                    : scheduler.weightFor(scheduler.stateFor(question->id)));
+            }
+        }
+        return pool;
+    };
+
+    const auto collect = [&poolForPart](const QVector<const Question *> &drawn, int partIndex) {
+        QVector<Pick> result;
+        result.reserve(drawn.size());
+        for (const Question *question : drawn)
+            result.append(Pick{question, partIndex});
+        return result;
+    };
+
+    const bool perPart = options.examMode || !options.questionsPerPart.isEmpty();
     if (perPart) {
         for (int partIndex = 0;
              partIndex < catalog.parts.size() && partIndex < options.questionsPerPart.size();
@@ -117,46 +174,69 @@ ExamPaper PaperBuilder::build(const Catalog &catalog, const Scheduler &scheduler
             const int wanted = options.questionsPerPart.at(partIndex);
             if (wanted <= 0)
                 continue;
-            const Part &part = catalog.parts.at(partIndex);
-
-            QVector<const Question *> pool;
             QVector<double> weights;
-            for (const Section &section : part.sections) {
-                for (const Question *question : section.questions()) {
-                    if (!question->isActive())
-                        continue;
-                    pool.append(question);
-                    weights.append(options.reviewMode ? 1.0
-                                                      : scheduler.weightFor(
-                                                            scheduler.stateFor(question->id)));
-                }
-            }
-            picked.append(drawWeighted(pool, weights, wanted, seed + partIndex));
+            const QVector<const Question *> pool = poolForPart(catalog.parts.at(partIndex), &weights);
+            picks.append(collect(drawWeighted(pool, weights, wanted, seed + partIndex), partIndex));
         }
     } else {
         QVector<const Question *> pool;
         QVector<double> weights;
-        for (const Part &part : catalog.parts) {
-            for (const Section &section : part.sections) {
-                for (const Question *question : section.questions()) {
-                    if (!question->isActive())
-                        continue;
-                    pool.append(question);
-                    weights.append(options.reviewMode
-                                       ? 1.0
-                                       : scheduler.weightFor(scheduler.stateFor(question->id)));
+        for (int partIndex = 0; partIndex < catalog.parts.size(); ++partIndex) {
+            QVector<double> partWeights;
+            const QVector<const Question *> partPool = poolForPart(catalog.parts.at(partIndex),
+                                                                   &partWeights);
+            pool.append(partPool);
+            weights.append(partWeights);
+        }
+        picks = collect(drawWeighted(pool, weights, options.questionCount, seed), -1);
+    }
+
+    // Prüfungsteil limits, in the order of the catalog.
+    QVector<int> partIndexOfQuestion(picks.size(), -1);
+    if (options.examMode) {
+        for (int partIndex = 0; partIndex < catalog.parts.size(); ++partIndex) {
+            const Part &part = catalog.parts.at(partIndex);
+            if (options.questionsPerPart.value(partIndex) <= 0)
+                continue;
+            PaperPartSummary summary;
+            summary.partId = part.id;
+            summary.letter = partLetter(part);
+            summary.title = part.title;
+            summary.passScore = part.selection.passScore.value_or(0);
+            summary.errorPointBudget = part.selection.errorPoints.value_or(0);
+            summary.minutes = part.selection.minutes.value_or(0);
+            paper.parts.append(summary);
+        }
+    }
+
+    for (int i = 0; i < picks.size(); ++i) {
+        const Pick &pick = picks.at(i);
+        PaperQuestion entry;
+        entry.questionId = pick.question->id;
+        entry.answerOrder = shuffledAnswerOrder(*pick.question, seed, pick.question->id);
+        paper.questions.append(entry);
+
+        const int points = pick.question->effectivePoints(catalog.metadata);
+        paper.totalPoints += points;
+
+        if (pick.partIndex >= 0) {
+            partIndexOfQuestion[i] = pick.partIndex;
+            for (PaperPartSummary &summary : paper.parts) {
+                if (summary.partId == catalog.parts.at(pick.partIndex).id) {
+                    summary.questionCount += 1;
+                    summary.maxPoints += points;
+                    break;
                 }
             }
         }
-        picked = drawWeighted(pool, weights, options.questionCount, seed);
     }
 
-    for (const Question *question : std::as_const(picked)) {
-        PaperQuestion entry;
-        entry.questionId = question->id;
-        entry.answerOrder = shuffledAnswerOrder(*question, seed, question->id);
-        paper.questions.append(entry);
-        paper.totalPoints += question->effectivePoints(catalog.metadata);
+    if (options.examMode) {
+        for (const PaperPartSummary &summary : paper.parts) {
+            paper.passScore += summary.passScore;
+            paper.errorPointBudget += summary.errorPointBudget;
+            paper.totalMinutes += summary.minutes;
+        }
     }
 
     return paper;
