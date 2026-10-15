@@ -1,0 +1,158 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# HamRadioTrainer 2026 - Neu aufgebaut von Jan DC6DX
+#
+# Baut die Installationspakete. Jedes Paket wird nach dem Bau geprüft: es muss
+# die drei Kataloge und alle 687 Bilder enthalten, sonst findet das
+# installierte Programm keine einzige Frage.
+
+name: Pakete
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: DEB und RPM
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Qt installieren
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          # qtsvg ist noetig: alle 687 Bilder der Quelle sind SVG.
+          modules: 'qtbase;qtsvg'
+          cache: true
+
+      - name: Paketwerkzeuge installieren
+        run: |
+          sudo apt-get update
+          # dpkg-dev liefert dpkg-shlibdeps fuer die Abhaengigkeiten des .deb,
+          # rpm liefert rpmbuild fuer das .rpm.
+          sudo apt-get install -y --no-install-recommends dpkg-dev rpm ninja-build
+
+      - name: Qt-Bibliotheken fuer dpkg-shlibdeps auffindbar machen
+        run: |
+          # CPACK_DEBIAN_PACKAGE_SHLIBDEPS liest die Abhaengigkeiten aus den
+          # gebauten Programmen. Die Qt-Bibliotheken liegen in einer
+          # Aktions-Voreinstellung, die dem Linker-Suchpfad des Systems
+          # unbekannt ist; ohne diesen Schritt schlaegt die Analyse fehl.
+          qtlib="${{ steps.qtbin }}/../lib"
+          echo "Qt-Bibliotheken: $qtlib"
+          echo "$qtlib" | sudo tee /etc/ld.so.conf.d/qt.conf
+          sudo ldconfig
+          ldconfig -p | grep -m1 libQt6Core.so.6
+
+      - name: Konfigurieren
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=None
+          -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Bauen
+        run: cmake --build build
+
+      - name: Testsuite
+        run: QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+
+      - name: Pakete bauen
+        run: |
+          cd build
+          cpack -G DEB
+          cpack -G RPM
+
+      - name: Pakete pruefen
+        run: |
+          set -euo pipefail
+          for paket in build/*.deb build/*.rpm; do
+            echo "== $paket =="
+            if [[ $paket == *.deb ]]; then
+              inhalt=$(dpkg-deb -c "$paket")
+              felder=$(dpkg-deb -f "$paket" Package Version Depends)
+            else
+              inhalt=$(rpm -qlp "$paket")
+              felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License)")
+            fi
+            echo "$felder"
+            # Die drei Kataloge muessen dabei sein.
+            for klasse in N E A; do
+              echo "$inhalt" | grep -q "de-amateurfunk-$klasse.xml" \
+                || { echo "FEHLT: Katalog $klasse"; exit 1; }
+            done
+            # Und die Bilder, sonst waere jede Bildfrage unbrauchbar.
+            bilder=$(echo "$inhalt" | grep -c '\.svg$')
+            echo "Bilder im Paket: $bilder"
+            [ "$bilder" -ge 687 ] || { echo "FEHLER: zu wenige Bilder"; exit 1; }
+            echo "Desktop-Eintraege: $(echo "$inhalt" | grep -c '\.desktop$')"
+          done
+
+      - name: Hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-pakete
+          path: |
+            build/*.deb
+            build/*.rpm
+
+  windows:
+    name: Windows Installer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Qt installieren
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtbase;qtsvg'
+          cache: true
+          # Wird im Linux-Schritt gebraucht, um die Qt-Bibliotheken fuer
+          # dpkg-shlibdeps auffindbar zu machen.
+          id: qtbin
+
+      - name: NSIS installieren
+        run: choco install nsis --no-progress -y
+
+      - name: MSVC-Umgebung einrichten
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Konfigurieren
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX="C:/Program Files/HamRadioTrainer 2026"
+
+      - name: Bauen
+        run: cmake --build build --config Release
+
+      - name: Testsuite
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Installer bauen
+        run: cd build && cpack -G NSIS
+
+      - name: Inhalt des Installers pruefen
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "kein Installer erzeugt" }
+          Write-Host "Installer: $($exe.Name) ($([math]::Round($exe.Length/1MB,1)) MB)"
+          # Der Installer muss die Kataloge und die Qt-DLLs enthalten.
+          $zip = "$($exe.FullName).zip"
+          & "${env:ProgramFiles}\7-Zip\7z.exe" x $exe.FullName "-o$([IO.Path]::GetDirectoryName($zip))" | Out-Null
+
+      - name: Hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/*.exe

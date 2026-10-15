@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>hamradiotrainer-2026</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>HamRadioTrainer 2026</name>
+  <summary>Lern- und Prüfungstrainer für den Amateurfunk</summary>
+
+  <description>
+    <p>
+      HamRadioTrainer 2026 bereitet auf die Amateurfunkprüfungen der Klassen
+      N, E und A vor. Der Fragenkatalog entspricht der dritten Auflage der
+      Bundesnetzagentur, der Prüfungsumfang der Amtsblatt-Verfügung 29/2024.
+    </p>
+    <p>Die Anwendung bietet:</p>
+    <ul>
+      <li>eine vollständige Prüfungssimulation mit 25 Fragen je Prüfungsteil, Bestehensschwelle und Zeitlimit</li>
+      <li>eine Lernansicht mit Fortschritt je Prüfungsteil und Leitner-Verteilung</li>
+      <li>Übungsrunden über die offenen Fragen mit Selbsteinschätzung, damit unsichere Fragen häufiger wiederholt werden</li>
+      <li>eine Lernfortschrittsverwaltung, die je Katalog gespeichert wird</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">hamradiotrainer-2026.desktop</launchable>
+
+  <provides>
+    <binary>HamRadioTrainer2026</binary>
+  </provides>
+
+  <categories>
+    <category>Education</category>
+    <category>Science</category>
+  </categories>
+
+  <keywords>
+    <keyword>Amateurfunk</keyword>
+    <keyword>Prüfung</keyword>
+    <keyword>Lerner</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-10-15">
+      <description>
+        <p>Erste Fassung mit Katalog, Prüfungssimulation und Lernansicht.</p>
+      </description>
+    </release>
+  </releases>
+
+  <developer id="hamradiotrainer.org">
+    <name>Jan DC6DX und Mitwirkende</name>
+  </developer>
+
+  <url type="homepage">https://www.bundesnetzagentur.de/amateurfunk</url>
+</component>

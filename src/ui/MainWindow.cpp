@@ -8,6 +8,7 @@
 #include "MainWindow.h"
 
 #include "core/CatalogValidator.h"
+#include "core/CatalogLocator.h"
 #include "core/CatalogXml.h"
 #include "ExamWidget.h"
 #include "LearningWidget.h"
@@ -23,6 +24,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QSettings>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QTableWidget>
@@ -272,6 +274,29 @@ void MainWindow::saveProgress()
         m_status->setText(tr("Fortschritt nicht gespeichert: %1").arg(error));
 }
 
+void MainWindow::rememberCatalog(const QString &path)
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), path);
+}
+
+void MainWindow::openInitialCatalog()
+{
+    // The catalog of last use, as long as it is still there. A hand edited
+    // catalog keeps its path, so the learner's own questions are not lost.
+    QSettings settings;
+    const QString last = settings.value(QStringLiteral("catalog/lastPath")).toString();
+    if (!last.isEmpty() && QFileInfo::exists(last) && openCatalog(last))
+        return;
+
+    const CatalogLocator::Result located = CatalogLocator::locate();
+    if (located.paths.isEmpty()) {
+        m_status->setText(located.problem);
+        return;
+    }
+    openCatalog(located.paths.first());
+}
+
 bool MainWindow::openCatalog(const QString &path)
 {
     Catalog catalog;
@@ -287,6 +312,7 @@ bool MainWindow::openCatalog(const QString &path)
 
     m_catalog = catalog;
     m_catalogPath = path;
+    rememberCatalog(path);
     m_exam->setCatalog(&m_catalog, path);
     m_learning->setCatalog(&m_catalog, path);
     loadProgress();

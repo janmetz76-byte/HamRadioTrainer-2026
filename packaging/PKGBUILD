@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# PKGBUILD für HamRadioTrainer 2026, für das AUR.
+#
+# Arch installiert ausschliesslich aus dem AUR. Ein AUR-Eintrag ist diese
+# Datei: sie baut aus dem Quelltext und liefert kein fertiges Binary. Wer den
+# Eintrag anmeldet, pflegt sha256sums und pkgver bei jedem Release neu.
+#
+#   git clone https://aur.archlinux.org/hamradiotrainer-2026.git
+#   cd hamradiotrainer-2026
+#   makepkg -si
+#
+# Die Abhängigkeiten sind mit "depends" festgeschrieben, weil ein gebautes
+# Paket die benutzten Bibliotheken zur Bauzeit nicht auflösen kann. Wird eine
+# davon gestrichen, meldet pacman das beim Entfernen.
+
+pkgname=hamradiotrainer-2026
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Lern- und Prüfungstrainer für den Amateurfunk nach Amtsblatt-Verfügung 29/2024"
+arch=('x86_64')
+url="https://github.com/hamradiotrainer/hamradiotrainer-2026"
+license=('GPL3')
+# Die Kataloge unterstehen der Lizenz DL-DE-BY-2.0 der Bundesnetzagentur und
+# sind als Quelltext enthalten, deshalb gehört die ganze Anwendung unter GPL3.
+depends=('qt6-base' 'qt6-svg')
+makedepends=('cmake' 'ninja')
+optdepends=('qt6-multimedia: Tonwiedergabe, derzeit nicht genutzt')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+# Ersetzen, sobald das Releasearchiv veröffentlicht ist:
+# sha256sums=('SKIP')
+
+build() {
+    # Der Installationspfad ist /usr; CatalogLocator sucht die Kataloge unter
+    # /usr/share/hamradiotrainer-2026/catalogs.
+    cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=None \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build
+}
+
+check() {
+    # Die Testsuite braucht eine Anzeige; offscreen genügt.
+    QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}

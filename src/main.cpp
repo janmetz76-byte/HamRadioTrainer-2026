@@ -36,8 +36,11 @@ int main(int argc, char *argv[])
     window.show();
 
     const QStringList arguments = parser.positionalArguments();
-    if (!arguments.isEmpty())
+    if (!arguments.isEmpty()) {
         window.openCatalog(QDir::current().absoluteFilePath(arguments.first()));
+    } else {
+        window.openInitialCatalog();
+    }
 
     return app.exec();
 }

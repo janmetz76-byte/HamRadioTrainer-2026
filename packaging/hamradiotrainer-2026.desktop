@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=HamRadioTrainer 2026
+GenericName=Amateurfunk-Prüfungstrainer
+Comment=Lern- und Prüfungstrainer für den Amateurfunk nach der Amtsblatt-Verfügung 29/2024
+Exec=HamRadioTrainer2026 %f
+TryExec=HamRadioTrainer2026
+Icon=hamradiotrainer-2026
+Terminal=false
+Categories=Education;Science;
+Keywords=Amateurfunk;Prüfung;Lerner;DLE;N;E;A;
+MimeType=application/xml;
+StartupNotify=true

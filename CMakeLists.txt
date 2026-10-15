@@ -36,6 +36,7 @@ add_library(hrt_core STATIC
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
     src/core/LatexFormatter.cpp
+    src/core/CatalogLocator.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
     src/learning/LearningStatistics.cpp
@@ -44,10 +45,31 @@ add_library(hrt_core STATIC
     src/exam/ExamSession.cpp)
 
 target_include_directories(hrt_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+include(GNUInstallDirs)
+
+# Where the catalogs are installed, relative to the installation prefix.
+# Runtime search (CatalogLocator) and the packaging rules read this one
+# variable, so they cannot drift apart.
+#
+# It deliberately stays a relative path. A cache variable of type PATH would
+# turn a relative value from the command line into an absolute one anchored at
+# the build directory, and the catalogs would silently be installed into the
+# build tree - and from there into the package.
+set(HRT_CATALOG_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/hamradiotrainer-2026"
+    CACHE STRING "Installationsort der Fragenkataloge, relativ zum Praefix")
+if(IS_ABSOLUTE "${HRT_CATALOG_INSTALL_DIR}")
+    message(FATAL_ERROR
+        "HRT_CATALOG_INSTALL_DIR muss relativ zum Installationspraefix sein, "
+        "kein absoluter Pfad: ${HRT_CATALOG_INSTALL_DIR}")
+endif()
 target_link_libraries(hrt_core PUBLIC Qt6::Core Qt6::Xml)
 target_compile_definitions(hrt_core PUBLIC
     QT_DISABLE_DEPRECATED_BEFORE=0x060000
-    HRT_VERSION_STRING="${PROJECT_VERSION}")
+    HRT_VERSION_STRING="${PROJECT_VERSION}"
+    HRT_INSTALL_DATA_DIR="${CMAKE_INSTALL_PREFIX}"
+    HRT_CATALOG_RELATIVE_DIR="${HRT_CATALOG_INSTALL_DIR}"
+    HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 # The user interface is a library of its own so that the widget tests can link
 # the very same code the application runs.
@@ -110,22 +132,16 @@ if(Qt6Test_FOUND)
     enable_testing()
     add_executable(tst_catalog tests/tst_catalog.cpp)
     target_link_libraries(tst_catalog PRIVATE hrt_core Qt6::Test)
-    target_compile_definitions(tst_catalog PRIVATE
-        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME catalog COMMAND tst_catalog)
 
     add_executable(tst_scheduler tests/tst_scheduler.cpp)
     target_link_libraries(tst_scheduler PRIVATE hrt_core Qt6::Test)
-    target_compile_definitions(tst_scheduler PRIVATE
-        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME scheduler COMMAND tst_scheduler)
 
     if(TARGET Qt6::Widgets)
         foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget)
             add_executable(${widget_test} tests/${widget_test}.cpp)
             target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
-            target_compile_definitions(${widget_test} PRIVATE
-                HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
             add_test(NAME ${widget_test} COMMAND ${widget_test})
             set_tests_properties(${widget_test} PROPERTIES
                 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -133,9 +149,13 @@ if(Qt6Test_FOUND)
     endif()
 
     add_executable(tst_latex tests/tst_latex.cpp)
+    # Prueft, dass das Programm seine Kataloge an den Orten findet, an denen
+    # das Packaging sie ablegt: Installationspraefix, /usr und /usr/local.
+    add_executable(tst_cataloglocator tests/tst_cataloglocator.cpp)
+    target_link_libraries(tst_cataloglocator PRIVATE hrt_core Qt6::Test)
+    add_test(NAME cataloglocator COMMAND tst_cataloglocator)
+
     target_link_libraries(tst_latex PRIVATE hrt_core Qt6::Test)
-    target_compile_definitions(tst_latex PRIVATE
-        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME latex COMMAND tst_latex)
 
     add_executable(tst_learning tests/tst_learning.cpp)
@@ -148,30 +168,38 @@ if(Qt6Test_FOUND)
 
     add_executable(tst_exam tests/tst_exam.cpp)
     target_link_libraries(tst_exam PRIVATE hrt_core Qt6::Test)
-    target_compile_definitions(tst_exam PRIVATE
-        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME exam COMMAND tst_exam)
 endif()
 
 # ---------------------------------------------------------------------------
 # Installation
+#
+# The catalogs belong to the application, not to the documentation: without
+# them the program starts up with nothing to show.
 # ---------------------------------------------------------------------------
-
-include(GNUInstallDirs)
-
 install(TARGETS HamRadioTrainer2026
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(DIRECTORY data/catalogs
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/hamradiotrainer2026
+    DESTINATION ${HRT_CATALOG_INSTALL_DIR}
     FILES_MATCHING PATTERN "*.xml")
-
+install(DIRECTORY data/catalogs/images
+    DESTINATION ${HRT_CATALOG_INSTALL_DIR})
 install(FILES schema/catalog.xsd
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/hamradiotrainer2026/schema)
-
+    DESTINATION ${HRT_CATALOG_INSTALL_DIR}/schema)
 install(FILES LICENSE README.md
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/hamradiotrainer2026)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/hamradiotrainer-2026)
+
+# Desktop entry, icon and metadata only where they serve a purpose.
+if(UNIX AND NOT APPLE)
+    install(FILES packaging/hamradiotrainer-2026.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES packaging/hamradiotrainer-2026.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+    install(FILES packaging/icons/hicolor/scalable/apps/hamradiotrainer-2026.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+endif()
 
 # Windows: collect Qt runtime next to the executable so the bundle is portable.
 if(WIN32)
@@ -182,3 +210,63 @@ if(WIN32)
         NO_TRANSLATIONS)
     install(SCRIPT ${deploy_script})
 endif()
+# ---------------------------------------------------------------------------
+# CPack
+#
+# Linux: DEB for Debian, Ubuntu and their relatives, RPM for Fedora and RHEL.
+#   An RPM also runs on openSUSE in most cases, but that is not officially
+#   supported there; see packaging/README.md.
+# Windows: NSIS produces a single .exe installer.
+#
+# Arch is not built here. Arch packages live in the AUR as a PKGBUILD that
+# builds from source; packaging/PKGBUILD is the recipe for it.
+# ---------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "hamradiotrainer-2026")
+set(CPACK_PACKAGE_VENDOR "Jan DC6DX und HamRadioTrainer 2026 contributors")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+    "Lern- und Prüfungstrainer für den Amateurfunk nach Amtsblatt-Verfügung 29/2024")
+set(CPACK_PACKAGE_DESCRIPTION
+    "HamRadioTrainer 2026 bereitet auf die Amateurfunkprüfungen der Klassen N, E "
+    "und A vor. Der Fragenkatalog entspricht der dritten Auflage der "
+    "Bundesnetzagentur, der Prüfungsumfang der Amtsblatt-Verfügung 29/2024.")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/hamradiotrainer/hamradiotrainer-2026")
+# Ein .deb braucht zwingend eine erreichbare Maintainer-Adresse, sonst bricht
+# der Build ab. ".invalid" ist per RFC 2606 nie erreichbar und zeigt deutlich,
+# dass hier noch nichts veroeffentlicht wird.
+#
+# VOR DER VEROEFFENTLICHUNG ERSETZEN.
+set(CPACK_PACKAGE_CONTACT "jan.dc6dx@hamradiotrainer.invalid")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_FILE_NAME
+    "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_STRIP_FILES ON)
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_NSIS_PACKAGE_NAME "HamRadioTrainer 2026")
+    set(CPACK_NSIS_DISPLAY_NAME "HamRadioTrainer 2026")
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY "HamRadioTrainer 2026")
+else()
+    set(CPACK_GENERATOR "DEB;RPM")
+
+    set(CPACK_DEBIAN_PACKAGE_NAME "hamradiotrainer-2026")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "education")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+    set(CPACK_RPM_PACKAGE_NAME "hamradiotrainer-2026")
+    set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+    set(CPACK_RPM_PACKAGE_GROUP "Applications/Education")
+    # The dependencies are derived from the libraries the program actually
+    # links against, so they follow the Qt version it was built with.
+    set(CPACK_RPM_PACKAGE_AUTOREQPROV ON)
+    set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+endif()
+
+include(CPack)

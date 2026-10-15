@@ -41,10 +41,16 @@ public:
 
     bool openCatalog(const QString &path);
 
+    /// Opens the catalog the learner used last, or the first one that was
+    /// installed. A packaged program must not ask for a catalog on every
+    /// start.
+    void openInitialCatalog();
+
 private:
     void loadProgress();
     void saveProgress();
     void showResult(const ExamResult &result);
+    void rememberCatalog(const QString &path);
     void buildUi();
     void populateTree();
     void showQuestion(QTreeWidgetItem *item);

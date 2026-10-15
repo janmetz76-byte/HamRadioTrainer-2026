@@ -331,6 +331,10 @@ notwendig ist.
 
 ## Entwicklungstand
 
+Stand: alle 127 Tests in 10 Programmen sind grün. Die Anwendung ist
+funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
+und die Veröffentlichung.
+
 Erledigt:
 
 * Katalogformat als Klartext-XML mit Schema
@@ -458,6 +462,60 @@ Beides gehört in die Anzeige der Anwendung.
 
 DL-DE-BY-2.0 und GPL-3.0 stehen nicht im Widerspruch: Die Namensnennungsplicht
 bindet den Fragentext, nicht den Anwendungscode.
+
+## Bauen und Verteilen
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+QT_QPA_PLATFORM=offscreen ctest --test-dir build
+```
+
+Zum Ausprobieren ohne Installation genügt
+`cmake --install build`; das Programm findet seine Kataloge danach von selbst.
+Wird kein Katalog angegeben, lädt es den zuletzt benutzten oder den ersten
+gefundenen.
+
+### Installationspakete
+
+| Ziel | Ergebnis |
+|---|---|
+| Windows | **eine `.exe`** (NSIS, mitgelieferte Qt-Laufzeit) |
+| Debian, Ubuntu und Verwandte | `.deb` |
+| Fedora, RHEL, CentOS Stream | `.rpm` |
+| openSUSE, SuSE | `.rpm` läuft meist, ist dort aber nicht offiziell unterstützt |
+| Arch Linux | **kein Binärpaket – siehe unten** |
+| alles andere | `.deb`/`.rpm` als Ausgangspunkt, sonst ein noch nicht fertiges AppImage |
+
+Gebaut wird mit CPack, die Paketabhängigkeiten werden dabei aus den wirklich
+benutzten Bibliotheken ermittelt. Einzelheiten, auch zu den Grenzen je
+Distribution, stehen in [`packaging/README.md`](packaging/README.md).
+
+### Verteilen auf Arch
+
+**Arch lässt sich hier nicht fertig ausliefern, und das ist keine
+Nachlässigkeit, sondern so vorgesehen.** Arch installiert ausschließlich aus
+dem AUR, und ein AUR-Eintrag ist eine `PKGBUILD`, die aus dem Quelltext baut –
+kein fertiges Binary. Jemand, der Arch unterstützen will, muss dafür ein
+AUR-Konto haben und den Eintrag fortlaufend pflegen; das kann dieses Projekt
+nicht übernehmen.
+
+Geliefert wird alles Übrige: [`packaging/PKGBUILD`](packaging/PKGBUILD) ist
+fertig, das Quellarchiv muss als Release mit Prüfsumme bereitstehen. Wer Arch
+ohne AUR bedienen möchte, baut selbst:
+
+```sh
+git clone https://aur.archlinux.org/hamradiotrainer-2026.git
+cd hamradiotrainer-2026
+makepkg -si
+```
+
+### Noch offen
+
+* Die Paketkontaktadresse in `CMakeLists.txt` steht auf `.invalid` und muss vor
+  der Veröffentlichung durch eine erreichbare Adresse ersetzt werden.
+* Ein AppImage ist eingerichtet, aber nicht fertig; es braucht ein zusätzliches
+  Werkzeug (`appimagetool` oder `linuxdeployqt`) beim Bauen.
 
 ## Geschichte
 

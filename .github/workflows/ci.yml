@@ -28,7 +28,10 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          modules: 'qtbase'
+          # qtsvg ist zwingend nötig: alle 687 Frage- und Antwortbilder der
+          # Quelle sind SVG. Ohne das Modul bliebe jedes Bild unsichtbar und
+          # der Bildtest würde fehlschlagen.
+          modules: 'qtbase;qtsvg'
           cache: true
 
       - name: MSVC-Umgebung einrichten
