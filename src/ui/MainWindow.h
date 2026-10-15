@@ -15,14 +15,17 @@
 #include <QMainWindow>
 #include <QVector>
 
+class QButtonGroup;
+class QStackedWidget;
 class QDockWidget;
+class QRadioButton;
 class QLabel;
 class QPlainTextEdit;
-class QTabWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 
 namespace hrt {
+class CatalogView;
 class ExamWidget;
 class LearningWidget;
 class ValidationReport;
@@ -54,8 +57,7 @@ private:
     void showResult(const ExamResult &result);
     void rememberCatalog(const QString &path);
     void buildUi();
-    void populateTree();
-    void showQuestion(QTreeWidgetItem *item);
+    void selectView(int index);
     void updateStatus();
     /// Fills the validation report. Errors keep blocking with a modal dialog,
     /// because an unusable catalog must not be used by accident. Warnings do
@@ -64,12 +66,13 @@ private:
 
     Catalog m_catalog;
     QString m_catalogPath;
-    QTabWidget *m_tabs = nullptr;
     ExamWidget *m_exam = nullptr;
     LearningWidget *m_learning = nullptr;
     ProgressStore m_progressStore{ProgressStore(QString())};
-    QTreeWidget *m_tree = nullptr;
-    QPlainTextEdit *m_details = nullptr;
+    CatalogView *m_catalogView = nullptr;
+    QList<QWidget *> m_views;
+    QButtonGroup *m_viewGroup = nullptr;
+    QStackedWidget *m_viewStack = nullptr;
     QLabel *m_status = nullptr;
     QDockWidget *m_reportDock = nullptr;
     ValidationReport *m_report = nullptr;

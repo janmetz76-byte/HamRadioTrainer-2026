@@ -7,6 +7,7 @@
 // any later version.
 #include "MainWindow.h"
 
+#include "CatalogView.h"
 #include "ValidationReport.h"
 
 #include "core/CatalogValidator.h"
@@ -17,6 +18,7 @@
 
 #include <QAbstractItemView>
 #include <QAction>
+#include <QButtonGroup>
 #include <QDockWidget>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -27,8 +29,10 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QRadioButton>
 #include <QSettings>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QTableWidget>
 #include <QTabWidget>
@@ -108,6 +112,7 @@ void MainWindow::buildUi()
         if (m_progressStore.clear(m_catalog, &error)) {
             m_exam->clearProgress();
             m_learning->clearProgress();
+        m_catalogView->setProgress({});
             m_status->setText(tr("Lernfortschritt zurückgesetzt"));
         } else {
             QMessageBox::warning(this, tr("Zurücksetzen fehlgeschlagen"), error);
@@ -139,29 +144,52 @@ void MainWindow::buildUi()
     });
     helpMenu->addAction(aboutAction);
 
-    m_tree = new QTreeWidget(this);
-    m_tree->setColumnCount(3);
-    m_tree->setHeaderLabels({tr("Titel"), tr("Detail"), tr("Art")});
-    m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    connect(m_tree, &QTreeWidget::itemSelectionChanged, this,
-            [this] { showQuestion(m_tree->currentItem()); });
+    // Ansichtsleiste links, Arbeitsbereich rechts - so ist es im Original
+    // von 2015 aufgebaut. Reiter waren fuer diese Anwendung zu gedrängt:
+    // man konnte nie sehen, was es sonst gibt.
+    auto *rail = new QWidget(this);
+    auto *railLayout = new QVBoxLayout(rail);
+    railLayout->setContentsMargins(4, 4, 4, 4);
+    railLayout->setSpacing(4);
+    m_viewGroup = new QButtonGroup(rail);
+    m_viewGroup->setExclusive(true);
 
-    m_details = new QPlainTextEdit(this);
-    m_details->setReadOnly(true);
-
-    auto *splitter = new QSplitter(Qt::Horizontal, this);
-    splitter->addWidget(m_tree);
-    splitter->addWidget(m_details);
-    splitter->setStretchFactor(1, 1);
-
+    m_catalogView = new CatalogView(this);
     m_exam = new ExamWidget(this);
     m_learning = new LearningWidget(this);
 
-    m_tabs = new QTabWidget(this);
-    m_tabs->addTab(splitter, tr("Katalog"));
-    m_tabs->addTab(m_learning, tr("Lernen"));
-    m_tabs->addTab(m_exam, tr("Prüfung"));
-    setCentralWidget(m_tabs);
+    const QVector<QPair<QString, QWidget *>> views = {
+        {tr("Katalogansicht"), m_catalogView},
+        {tr("Fragen lernen"), m_learning},
+        {tr("Prüfungssimulation"), m_exam},
+    };
+
+    for (int i = 0; i < views.size(); ++i) {
+        auto *button = new QRadioButton(views.at(i).first, rail);
+        button->setToolTip(views.at(i).first);
+        m_viewGroup->addButton(button, i);
+        if (i == 0)
+            button->setChecked(true);
+        railLayout->addWidget(button);
+        m_views.append(views.at(i).second);
+    }
+    railLayout->addStretch(1);
+
+    connect(m_viewGroup, &QButtonGroup::buttonClicked, this,
+            [this](QAbstractButton *button) { selectView(m_viewGroup->id(button)); });
+
+    auto *body = new QStackedWidget(this);
+    for (QWidget *view : m_views)
+        body->addWidget(view);
+    m_viewStack = body;
+
+    auto *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(rail);
+    splitter->addWidget(body);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizes({190, 1100});
+    setCentralWidget(splitter);
 
     connect(m_exam, &ExamWidget::progressChanged, this, [this] { saveProgress(); });
     connect(m_learning, &LearningWidget::progressChanged, this, [this] { saveProgress(); });
@@ -272,6 +300,7 @@ void MainWindow::loadProgress()
         m_exam->clearProgress();
         m_exam->setProgress({});
         m_learning->clearProgress();
+        m_catalogView->setProgress({});
         return;
     }
     if (loaded.droppedStates > 0) {
@@ -280,15 +309,22 @@ void MainWindow::loadProgress()
     }
     m_exam->setProgress(loaded.states);
     m_learning->setProgress(loaded.states);
+    m_catalogView->setProgress(loaded.states);
 }
 
 void MainWindow::saveProgress()
 {
     if (m_catalogPath.isEmpty())
         return;
+    const QVector<QuestionState> states = m_exam->scheduler().states();
     QString error;
-    if (!m_progressStore.save(m_catalog, m_exam->scheduler().states(), &error))
+    if (!m_progressStore.save(m_catalog, states, &error)) {
         m_status->setText(tr("Fortschritt nicht gespeichert: %1").arg(error));
+        return;
+    }
+    // Die Fragenliste zeigt Lernstufe und Wiedervorlage; ohne diese Zeile
+    // bliebe sie nach jeder Runde stehen.
+    m_catalogView->setProgress(states);
 }
 
 void MainWindow::rememberCatalog(const QString &path)
@@ -334,10 +370,10 @@ bool MainWindow::openCatalog(const QString &path)
     m_catalog = catalog;
     m_catalogPath = path;
     rememberCatalog(path);
+    m_catalogView->setCatalog(&m_catalog, path);
     m_exam->setCatalog(&m_catalog, path);
     m_learning->setCatalog(&m_catalog, path);
     loadProgress();
-    populateTree();
     updateStatus();
 
     if (!usable) {
@@ -355,104 +391,12 @@ bool MainWindow::openCatalog(const QString &path)
     return true;
 }
 
-void MainWindow::populateTree()
+void MainWindow::selectView(int index)
 {
-    m_tree->clear();
-
-    for (const Part &part : m_catalog.parts) {
-        auto *partItem = new QTreeWidgetItem(m_tree);
-        partItem->setText(0, part.title);
-        partItem->setText(1, part.id);
-        partItem->setText(
-            ColumnDetail,
-            tr("Prüfungsteil, %1 von %2 Fragen in der Prüfung, %3 im Katalog")
-                .arg(part.selection.questions)
-                .arg(part.selection.questions)
-                .arg(partAvailable(part)));
-        partItem->setText(ColumnKind,
-                          tr("bestanden ab %1 von %2 Punkten, %3 Fehlerpunkte zulässig, %4 min")
-                              .arg(part.selection.passScore.value_or(0))
-                              .arg(part.selection.questions)
-                              .arg(part.selection.errorPoints.value_or(0))
-                              .arg(part.selection.minutes.value_or(0)));
-
-        for (const Section &section : part.sections) {
-            auto *sectionItem = new QTreeWidgetItem(partItem);
-            sectionItem->setText(0, section.title);
-            sectionItem->setText(1, section.id);
-            sectionItem->setText(2, tr("Abschnitt, %1 Fragen").arg(section.questions().size()));
-
-            for (const Chapter &chapter : section.chapters) {
-                auto *chapterItem = new QTreeWidgetItem(sectionItem);
-                chapterItem->setText(0, chapter.title);
-                chapterItem->setText(1, chapter.id);
-                chapterItem->setText(2, tr("Kapitel"));
-
-                for (const Question &question : chapter.questions) {
-                    auto *questionItem = new QTreeWidgetItem(chapterItem);
-                    questionItem->setText(0, question.text);
-                    questionItem->setText(1, question.id);
-                    questionItem->setText(ColumnKind,
-                                          tr("%1 · %2 Punkte%3%4")
-                                              .arg(question.isMultipleChoice()
-                                                       ? tr("Mehrfachauswahl")
-                                                       : tr("Einfachauswahl"))
-                                              .arg(question.points)
-                                              .arg(question.locked ? tr(" · gesperrt") : QString())
-                                              .arg(question.isRetired() ? tr(" · zurückgezogen")
-                                                                         : QString()));
-                    questionItem->setData(0, QuestionRole, true);
-                    if (question.locked || question.isRetired())
-                        questionItem->setForeground(0, Qt::gray);
-                }
-            }
-        }
-    }
-
-    m_tree->expandToDepth(1);
+    if (index >= 0 && index < m_views.size())
+        m_viewStack->setCurrentIndex(index);
 }
 
-void MainWindow::showQuestion(QTreeWidgetItem *item)
-{
-    if (!item || !item->data(0, QuestionRole).toBool()) {
-        m_details->clear();
-        return;
-    }
-
-    const QString id = item->text(1);
-    const Question *question = nullptr;
-    for (Question *candidate : m_catalog.questions()) {
-        if (candidate->id == id) {
-            question = candidate;
-            break;
-        }
-    }
-    if (!question)
-        return;
-
-    QString text;
-    text += tr("Kennung: %1\n").arg(question->id);
-    text += tr("Fehlerpunkte: %1\n").arg(question->points);
-    text += tr("Aufnahme: %1\n").arg(question->history.addedOn.toString(Qt::ISODate));
-    if (question->history.changedOn.isValid())
-        text += tr("Geändert: %1\n").arg(question->history.changedOn.toString(Qt::ISODate));
-    if (question->history.retiredOn.isValid())
-        text += tr("Zurückgezogen: %1\n").arg(question->history.retiredOn.toString(Qt::ISODate));
-    text += QLatin1Char('\n');
-    text += question->text + QStringLiteral("\n\n");
-
-    for (const Answer &answer : question->answers) {
-        text += (answer.correct ? QStringLiteral("[x] ") : QStringLiteral("[ ] "));
-        text += answer.text + QLatin1Char('\n');
-    }
-
-    if (!question->explanation.isEmpty())
-        text += QStringLiteral("\n") + tr("Erklärung: %1").arg(question->explanation);
-    if (!question->image.isEmpty())
-        text += QStringLiteral("\n") + tr("Bild: %1").arg(question->image);
-
-    m_details->setPlainText(text);
-}
 
 void MainWindow::updateStatus()
 {

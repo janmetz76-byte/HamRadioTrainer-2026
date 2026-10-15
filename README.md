@@ -331,7 +331,7 @@ notwendig ist.
 
 ## Entwicklungstand
 
-Stand: alle 137 Tests in 11 Programmen sind grün. Die Anwendung ist
+Stand: alle 144 Tests in 12 Programmen sind grün. Die Anwendung ist
 funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
 und die Veröffentlichung.
 
@@ -382,7 +382,15 @@ Unter *Datei* lässt sich der Fortschritt bewusst zurücksetzen.
 
 ### Lernen und Üben
 
-Der Tab *Lernen* zeigt den Stand und lädt zum Üben ein:
+Die Ansichtsleiste links entspricht der Arbeitsweise des Originals von 2015:
+**Katalogansicht**, **Fragen lernen**, **Prüfungssimulation**. Die Katalogansicht
+zeigt den Kapitelbaum mit Fragezahlen, daneben die Fragen des gewählten
+Kapitels mit den Spalten *Kennung, Frage, Lernstufe, Letzte Abfrage,
+Wiedervorlage* und darunter die Frage mit ihren Antworten, dem Lösungshinweis
+und dem Lernfortschritt. Dieselben Spaltennamen benutzt das Original, damit die
+Ansicht für Lernende wiedererkennbar bleibt.
+
+Der Bereich *Lernen* zeigt den Stand und lädt zum Üben ein:
 
 * **Zusammenfassung** – beantwortete Fragen, Trefferquote, fällige Wiederholungen,
   nie gesehene, wackelige und gefestigte Fragen

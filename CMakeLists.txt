@@ -75,6 +75,7 @@ target_compile_definitions(hrt_core PUBLIC
 # the very same code the application runs.
 add_library(hrt_ui STATIC
     src/ui/AnswerView.cpp
+    src/ui/CatalogView.cpp
     src/ui/ExamWidget.cpp
     src/ui/ImageLoader.cpp
     src/ui/LearningWidget.cpp
@@ -141,7 +142,7 @@ if(Qt6Test_FOUND)
 
     if(TARGET Qt6::Widgets)
         foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget
-                          tst_validationreport)
+                          tst_validationreport tst_catalogview)
             add_executable(${widget_test} tests/${widget_test}.cpp)
             target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
             add_test(NAME ${widget_test} COMMAND ${widget_test})

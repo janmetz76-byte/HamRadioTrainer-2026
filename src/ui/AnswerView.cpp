@@ -6,6 +6,8 @@
 // Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "AnswerView.h"
 
+#include "QuestionText.h"
+
 #include "ImageLoader.h"
 #include "core/LatexFormatter.h"
 
@@ -48,22 +50,6 @@ protected:
 
 namespace hrt {
 namespace {
-
-/// Puts a text into a label, rendering the math when the question carries it.
-///
-/// A QLabel in AutoText mode treats a string that looks like markup as markup,
-/// so plain questions are switched to PlainText explicitly. Otherwise a
-/// question containing a less-than sign would be swallowed.
-void setQuestionText(QLabel *label, const QString &text, TextFormat format)
-{
-    if (format == TextFormat::Latex) {
-        label->setTextFormat(Qt::RichText);
-        label->setText(LatexFormatter::toRichText(text));
-        return;
-    }
-    label->setTextFormat(Qt::PlainText);
-    label->setText(text);
-}
 
 /// Marks a control row as right or wrong once the solution has been shown.
 void tintRow(QWidget *row, const QColor &colour)
