@@ -408,7 +408,11 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
             .toString(QLatin1String("DL-DE-BY-2.0"))
             .replace(QLatin1String("->"), QLatin1String("-"));
     catalog.metadata.attribution = kAttribution;
-    catalog.metadata.modifiedSinceSource = false;
+    // DL-DE-BY-2.0 verlangt, eine Aenderung am fremden Datensatz kenntlich zu
+    // machen. Geraenderungen gibt es: die Lizenzkennung wurde oben von der
+    // fehlerhaften Schreibweise der Quelle normalisiert. Das ist als Aenderung
+    // zu kennzeichnen, sonst behauptet der Katalog unveraendert zu sein.
+    catalog.metadata.modifiedSinceSource = true;
 
     // Amtsblatt-Verfügung 29/2024: one point per correct answer. The source does
     // not publish a value per question, so the value is taken from the
@@ -418,8 +422,11 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
         "Prüfungsumfang nach Amtsblatt-Verfügung 29/2024 (gültig ab 24.06.2024): jeder "
         "Prüfungsteil hat 25 Fragen, ein Punkt je richtiger Antwort, bestanden ab 19 Punkten, "
         "also 6 zulässige Fehler. Prüfungsteil A hat 60 Minuten, die übrigen 45. Jede Frage "
-        "zählt damit einen Fehlerpunkt. Nach der ersten Änderung von Hand "
-        "modifiedSinceSource auf true setzen und den Quellenvermerk anpassen.");
+        "zählt damit einen Fehlerpunkt. "
+        "Geändert gegenüber der Quelle der Bundesnetzagentur: die Lizenzkennung "
+        "war dort fehlerhaft als 'DL-DE->BY-2.0' angegeben und wurde auf die "
+        "veröffentlichte Kennung DL-DE-BY-2.0 berichtigt. Am Fragenteil wurde "
+        "nichts geändert.");
 
     const QVector<char> sheets = sheetsForClass(examClass);
     int partIndex = 0;

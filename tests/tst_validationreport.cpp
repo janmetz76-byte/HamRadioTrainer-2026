@@ -63,7 +63,7 @@ private slots:
     void emptyReportSaysSo();
     void countsErrorsAndWarnings();
     void filterShowsOnlyTheChosenSeverity();
-    void realCatalogHasWarningsButNoErrors();
+    void shippedCatalogsProduceNoFindingsAtAll();
     void summaryMentionsBothCounts();
 };
 
@@ -106,20 +106,46 @@ void ValidationReportTest::filterShowsOnlyTheChosenSeverity()
     QCOMPARE(findList(&report)->topLevelItemCount(), 3);
 }
 
-void ValidationReportTest::realCatalogHasWarningsButNoErrors()
+void ValidationReportTest::shippedCatalogsProduceNoFindingsAtAll()
 {
-    const QVector<CatalogIssue> issues = warningsOfRealCatalog();
-    QVERIFY(!issues.isEmpty());
+    // Ein mitgelieferter Katalog muss ohne Beanstandung starten. Sonst steht
+    // bei jedem Start ein Hinweis im Menue, den niemand beheben kann.
+    //
+    // Der letzte solche Hinweis war der zur Datenlizenz: die Quelle der
+    // Bundesnetzagentur gibt die Kennung fehlerhaft als "DL-DE->BY-2.0" an,
+    // die Kataloge tragen die berichtigte Kennung und setzen deshalb
+    // modifiedSinceSource.
+    const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");
+    const QStringList files = {QStringLiteral("de-amateurfunk-N.xml"),
+                               QStringLiteral("de-amateurfunk-E.xml"),
+                               QStringLiteral("de-amateurfunk-A.xml")};
 
-    ValidationReport report;
-    report.setIssues(issues);
+    for (const QString &file : files) {
+        Catalog catalog;
+        QString error;
+        QVERIFY2(CatalogXml::load(QDir(base).filePath(file), &catalog, &error),
+                 qPrintable(error));
 
-    // Der mitgelieferte Katalog muss benutzbar sein; Hinweise sind erwartet
-    // und begruenden keinen Abbruch.
-    QCOMPARE(report.errorCount(), 0);
-    QVERIFY(report.warningCount() > 0);
-    QCOMPARE(findList(&report)->topLevelItemCount(), issues.size());
-    QVERIFY(!report.summary().isEmpty());
+        QVector<CatalogIssue> issues;
+        CatalogValidator::validate(catalog, &issues, base);
+
+        QStringList messages;
+        for (const CatalogIssue &issue : issues) {
+            messages.append(QStringLiteral("%1 %2 — %3")
+                                .arg(issue.severity == IssueSeverity::Error
+                                         ? QStringLiteral("FEHLER")
+                                         : QStringLiteral("HINWEIS"),
+                                     issue.location, issue.message));
+        }
+        QVERIFY2(messages.isEmpty(),
+                 qPrintable(QStringLiteral("%1 meldet: %2")
+                                .arg(file, messages.mid(0, 3).join(QStringLiteral(" / ")))));
+
+        ValidationReport report;
+        report.setIssues(issues);
+        QCOMPARE(report.errorCount(), 0);
+        QCOMPARE(report.warningCount(), 0);
+    }
 }
 
 void ValidationReportTest::summaryMentionsBothCounts()

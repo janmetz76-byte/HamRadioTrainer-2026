@@ -12,7 +12,8 @@
     <sourceUrl>https://www.bundesnetzagentur.de/amateurfunk</sourceUrl>
     <license>DL-DE-BY-2.0</license>
     <attribution>Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen, Bundesnetzagentur, 3. Auflage, März 2024, (www.bundesnetzagentur.de/amateurfunk), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)</attribution>
-    <notes>Prüfungsumfang nach Amtsblatt-Verfügung 29/2024 (gültig ab 24.06.2024): jeder Prüfungsteil hat 25 Fragen, ein Punkt je richtiger Antwort, bestanden ab 19 Punkten, also 6 zulässige Fehler. Prüfungsteil A hat 60 Minuten, die übrigen 45. Jede Frage zählt damit einen Fehlerpunkt. Nach der ersten Änderung von Hand modifiedSinceSource auf true setzen und den Quellenvermerk anpassen.</notes>
+    <modifiedSinceSource>true</modifiedSinceSource>
+    <notes>Prüfungsumfang nach Amtsblatt-Verfügung 29/2024 (gültig ab 24.06.2024): jeder Prüfungsteil hat 25 Fragen, ein Punkt je richtiger Antwort, bestanden ab 19 Punkten, also 6 zulässige Fehler. Prüfungsteil A hat 60 Minuten, die übrigen 45. Jede Frage zählt damit einen Fehlerpunkt. Geändert gegenüber der Quelle der Bundesnetzagentur: die Lizenzkennung war dort fehlerhaft als 'DL-DE-&gt;BY-2.0' angegeben und wurde auf die veröffentlichte Kennung DL-DE-BY-2.0 berichtigt. Am Fragenteil wurde nichts geändert.</notes>
   </metadata>
   <parts>
     <part id="DE-N-teil1-v" title="V (Kenntnisse von Vorschriften) – Amtsblatt-Verfügung 29/2024" order="1">
