@@ -42,11 +42,13 @@ public:
 private:
     static void checkSection(const Section &section,
                              const QString &basePath,
+                             const CatalogMetadata &metadata,
                              QVector<CatalogIssue> *issues,
                              QStringList *seenIds);
     static void checkQuestion(const Question &question,
                               const QString &chapterId,
                               const QString &basePath,
+                              const CatalogMetadata &metadata,
                               QVector<CatalogIssue> *issues,
                               QStringList *seenIds);
 };

@@ -5,10 +5,15 @@ Neu aufgebaut von **Jan DC6DX**.
 Lern- und Prüfungstrainer für den Amateurfunk, mit ausdrücklich bearbeitbaren
 Fragenkatalogen für die Prüfungsklassen **N**, **E** und **A**.
 
-Die Software steht unter der **GNU General Public License v3 oder später**
-(siehe [LICENSE](LICENSE)). Die Veröffentlichung des Quellcodes steht unter der
-Bedingung, dass die Lizenz der Fragentexte selbst geklärt ist — dazu siehe
-[Lizenzfragen zu den Musterfragen](#lizenzfragen-zu-den-musterfragen).
+Der Quellcode steht unter der **GNU General Public License v3 oder später**
+(siehe [LICENSE](LICENSE)).
+
+Die **Fragentexte selbst sind nicht unter der GPL.** Sie stammen aus dem
+maschinenlesbaren Fragenkatalog der Bundesnetzagentur und stehen unter der
+**Datenlizenz Deutschland – Namensnennung – Version 2.0 (DL-DE-BY-2.0)**. Diese
+Lizenz erlaubt ausdrücklich Vervielfältigung, Bearbeitung und Weitergabe, verlangt
+aber den Quellenvermerk und den Hinweis auf Änderungen. Beides ist in den
+Metadaten jedes Katalogs abgelegt — siehe [Lizenz und Quellenvermerk](#lizenz-und-quellenvermerk).
 
 ## Warum ein Neubau?
 
@@ -133,6 +138,44 @@ reproduzierbar bleiben, werden aber nie neu gezogen. Gesperrte Fragen
 (`locked="true"`) werden ebenfalls nie gezogen, können aber noch in alten
 Statistiken vorkommen.
 
+### Import aus dem BNetzA-Fragenkatalog
+
+Die amtlichen Daten liegen als `fragenkatalog3b.json` plus Verzeichnis `svgs/`
+vor. `hrt-catalog-import` erzeugt daraus je Prüfungsklasse einen Katalog und
+kopiert die benötigten Bilder:
+
+```sh
+./build/hrt-catalog-import \
+    --source /pfad/zum/Pruefungsfragen \
+    --output data/catalogs
+```
+
+Ergebnis des Imports vom 3. Auflage, März 2024:
+
+| Katalog | Fragen | Fragebilder | Antwortbilder | davon reine Bildfragen | LaTeX |
+|---|---|---|---|---|---|
+| Klasse N | 571 | 55 | 36 | 9 | 16 |
+| Klasse E | 463 | 98 | 112 | 28 | 53 |
+| Klasse A | 716 | 226 | 160 | 40 | 150 |
+
+Es werden 687 SVG-Dateien kopiert. Die Fragezahlen stimmen exakt mit der Quelle
+überein.
+
+Zwei Eigenheiten der Quelle, die im Format berücksichtigt sind:
+
+* **Antwort A ist immer richtig.** Die BNetzA führt die richtige Antwort
+  ausschließlich in `answer_a`. Der Importer setzt `correct="true"` genau dort.
+  Für die Prüfungssimulation müssen die Antworten vor der Anzeige gemischt
+  werden.
+* **77 Fragen haben gar keinen Antworttext**, sondern vier Antwortbilder. Das
+  Schema erlaubt deshalb bei `answer` ein Attribut `image` ohne `text`.
+
+**Fehlerpunkte werden in der Quelle nicht veröffentlicht.** Alle importierten
+Fragen haben daher `points="0"`, was im Schema „unbekannt" bedeutet. Die
+Prüfungssimulation kann das Fehlerpunktbudget der Prüfungsordnung erst
+einhalten, wenn die Punkte ergänzt werden; der Validator weist darauf einmal je
+Katalog hin.
+
 ### Katalog prüfen und normalisieren
 
 Das Kommandozeilenwerkzeug `hrt-catalog-tool` prüft Kataloge ohne grafische
@@ -164,12 +207,14 @@ xmllint --noout --schema schema/catalog.xsd data/catalogs/de-amateurfunk-E.xml
 CMakeLists.txt          Projekt, Build, Installation
 LICENSE                 GPL-3.0-or-later
 schema/catalog.xsd      verbindliche Definition des Katalogformats
-data/catalogs/          Beispielkataloge N, E, A (Platzhalter, keine amtlichen Fragen)
+data/catalogs/          Kataloge N, E, A (importiert aus der BNetzA-Quelle)
+data/catalogs/images/   687 SVG-Dateien zu den Bildfragen
 src/core/Catalog.*      Datenmodell
 src/core/CatalogXml.*   Lesen und Schreiben im Klartext-XML
 src/core/CatalogValidator.*  semantische Prüfung über das XSD hinaus
 src/ui/MainWindow.*     Fensterrahmen und Katalogbrowser
-tools/catalog-tool.cpp  Kommandozeilenwerkzeug
+tools/catalog-tool.cpp  Kommandozeilenwerkzeug zum Prüfen und Normalisieren
+tools/catalog-import.cpp  Import des BNetzA-Fragenkatalogs
 tests/tst_catalog.cpp   Testsuite
 ```
 
@@ -180,7 +225,8 @@ Erledigt:
 * Katalogformat als Klartext-XML mit Schema
 * Datenmodell, XML-Leser, XML-Schreiber, semantischer Validator
 * Testsuite (13 Tests) und Kommandozeilenwerkzeug
-* Beispielkataloge für N, E, A
+* Import des amtlichen BNetzA-Fragenkatalogs, 1750 Fragen für N, E und A
+  inklusive 687 Bildern, schemakonform geprüft
 * GitHub-Actions-Build für Linux und Windows 10/11
 
 Noch offen:
@@ -188,16 +234,32 @@ Noch offen:
 * Lernmodus mit Fortschrittsstatistik
 * Prüfungssimulation nach Prüfungsordnung
 * Katalogpflege in der Anwendung
-* Erfassung des aktuellen BNetzA-Fragenstands
+* Ergänzung der Fehlerpunkte, die die Quelle nicht veröffentlicht
+* Darstellung der LaTeX-Formeln (KaTeX)
 * Installer und Linux-Pakete (AppImage, Flatpak)
 
-## Lizenzfragen zu den Musterfragen
+## Lizenz und Quellenvermerk
 
-Die GPL gilt für den Quellcode dieser Anwendung. Sie gilt **nicht** automatisch
-für die amtlichen Musterfragen der BNetzA beziehungsweise des DL. Bevor ein
-Katalog mit echtem Fragenmaterial veröffentlicht wird, muss geklärt werden,
-unter welcher Lizenz dieses Material steht. Diese Frage ist im Projekt noch offen
-und blockiert die Veröffentlichung der fertigen Kataloge.
+| Gegenstand | Lizenz |
+|---|---|
+| Quellcode der Anwendung | GPL-3.0-or-later |
+| Fragentexte und Bilder | DL-DE-BY-2.0 |
+
+Der Quellenvermerk ist in jedem Katalog als `<attribution>` abgelegt und lautet
+wörtlich, wie von der BNetzA vorgegeben:
+
+> Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen,
+> Bundesnetzagentur, 3. Auflage, März 2024,
+> (www.bundesnetzagentur.de/amateurfunk), Datenlizenz Deutschland –
+> Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)
+
+Sobald ein Katalog von Hand geändert wird, verlangt DL-DE-BY-2.0 zusätzlich den
+**Hinweis auf die Änderung**. Dafür gibt es das Element
+`<modifiedSinceSource>true</modifiedSinceSource>`; der Validator erinnert daran.
+Beides gehört in die Anzeige der Anwendung.
+
+DL-DE-BY-2.0 und GPL-3.0 stehen nicht im Widerspruch: Die Namensnennungsplicht
+bindet den Fragentext, nicht den Anwendungscode.
 
 ## Geschichte
 

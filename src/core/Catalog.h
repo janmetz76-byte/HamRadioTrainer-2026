@@ -42,13 +42,29 @@ enum class QuestionType {
 QString questionTypeToString(QuestionType value);
 std::optional<QuestionType> questionTypeFromString(const QString &value);
 
+/// How the math markup inside a question is encoded.
+enum class TextFormat {
+    Plain,  ///< no markup
+    Latex,  ///< $...$ inline markup, rendered with KaTeX
+};
+
+QString textFormatToString(TextFormat value);
+std::optional<TextFormat> textFormatFromString(const QString &value);
+
 struct Answer
 {
     QString id;
+    /// Empty when the answer consists only of a picture.
     QString text;
+    /// Path relative to the catalog file, empty when the answer is text only.
+    QString image;
     bool correct = false;
     int order = 0;
+
+    bool hasContent() const { return !text.isEmpty() || !image.isEmpty(); }
 };
+
+struct CatalogMetadata;
 
 /// Per question revision metadata. A retired question stays in the catalog so
 /// that learning statistics of past sessions remain reproducible; the exam
@@ -72,12 +88,15 @@ struct Question
     QString image;        ///< Path relative to the catalog file, empty if none.
     QString explanation;
     QuestionHistory history;
-    int points = 0;       ///< Fehlerpunkte charged per wrong answer.
+    int points = 0;       ///< Fehlerpunkte charged per wrong answer, 0 = unknown.
+    TextFormat textFormat = TextFormat::Plain;
     bool locked = false;  ///< Gesperrt: excluded from generated papers.
 
     bool isRetired() const { return history.isRetired(); }
     /// Available in generated papers and in the learner.
     bool isActive() const { return !locked && !history.isRetired(); }
+    /// Penalty per wrong answer, falling back to the catalog default.
+    int effectivePoints(const CatalogMetadata &metadata) const;
     /// True when more than one answer is correct (Mehrfachauswahl).
     bool isMultipleChoice() const { return type == QuestionType::Multiple; }
     QVector<int> correctAnswerIndexes() const;
@@ -124,6 +143,14 @@ struct Part
 struct CatalogMetadata
 {
     QString title;
+    /// Penalty per wrong answer used for questions without "points".
+    int defaultPoints = 0;
+    /// SPDX style licence identifier of the question text, e.g. DL-DE-BY-2.0.
+    QString license;
+    /// Mandatory source notice, verbatim, whenever "license" is set.
+    QString attribution;
+    /// Set as soon as the catalog was edited after the import.
+    bool modifiedSinceSource = false;
     ExamClass examClass = ExamClass::Einsteiger;
     QString examId;
     QString authority;

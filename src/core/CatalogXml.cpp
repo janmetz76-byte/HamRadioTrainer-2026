@@ -63,6 +63,20 @@ bool readMetadata(QXmlStreamReader &reader, CatalogMetadata *metadata, QString *
             metadata->validUntil = readDate(reader);
         } else if (name == QLatin1String("language")) {
             metadata->language = reader.readElementText().trimmed();
+        } else if (name == QLatin1String("defaultPoints")) {
+            bool pointsOk = false;
+            metadata->defaultPoints = reader.readElementText().trimmed().toInt(&pointsOk);
+            if (!pointsOk) {
+                *error = QStringLiteral("'defaultPoints' ist keine Zahl.");
+                return false;
+            }
+        } else if (name == QLatin1String("license")) {
+            metadata->license = reader.readElementText().trimmed();
+        } else if (name == QLatin1String("attribution")) {
+            metadata->attribution = reader.readElementText().trimmed();
+        } else if (name == QLatin1String("modifiedSinceSource")) {
+            metadata->modifiedSinceSource =
+                reader.readElementText().trimmed() == QLatin1String("true");
         } else if (name == QLatin1String("sourceUrl")) {
             metadata->sourceUrl = reader.readElementText().trimmed();
         } else if (name == QLatin1String("notes")) {
@@ -84,10 +98,26 @@ bool readQuestion(QXmlStreamReader &reader, Question *question, QString *error)
         *error = QStringLiteral("Frage ohne gültiges Attribut 'order'.");
         return false;
     }
-    question->points = reader.attributes().value(QLatin1String("points")).toInt(&ok);
-    if (!ok) {
-        *error = QStringLiteral("Frage %1 ohne gültiges Attribut 'points'.").arg(question->id);
-        return false;
+    if (reader.attributes().hasAttribute(QLatin1String("points"))) {
+        question->points = reader.attributes().value(QLatin1String("points")).toInt(&ok);
+        if (!ok) {
+            *error = QStringLiteral("Frage %1: Attribut 'points' ist keine Zahl.").arg(question->id);
+            return false;
+        }
+    }
+    // textFormat defaults to "plain" in the schema, so an absent attribute is
+    // not an error.
+    const QString formatValue = reader.attributes().value(QLatin1String("textFormat")).toString();
+    if (formatValue.isEmpty()) {
+        question->textFormat = TextFormat::Plain;
+    } else {
+        const auto format = textFormatFromString(formatValue);
+        if (!format) {
+            *error = QStringLiteral("Frage %1: Attribut 'textFormat' muss 'plain' oder "
+                                   "'latex' sein.").arg(question->id);
+            return false;
+        }
+        question->textFormat = *format;
     }
     question->locked =
         reader.attributes().value(QLatin1String("locked")).toString() == QLatin1String("true");
@@ -114,6 +144,7 @@ bool readQuestion(QXmlStreamReader &reader, Question *question, QString *error)
                 Answer answer;
                 answer.id = reader.attributes().value(QLatin1String("id")).toString();
                 answer.text = reader.attributes().value(QLatin1String("text")).toString();
+                answer.image = reader.attributes().value(QLatin1String("image")).toString();
                 answer.order = reader.attributes().value(QLatin1String("order")).toInt(&ok);
                 if (!ok) {
                     *error = QStringLiteral("Antwort ohne gültiges Attribut 'order'.");
@@ -321,8 +352,18 @@ QByteArray CatalogXml::toXml(const Catalog &catalog)
         writer.writeTextElement(QStringLiteral("validUntil"),
                                 metadata.validUntil.toString(Qt::ISODate));
     writer.writeTextElement(QStringLiteral("language"), metadata.language);
+    if (metadata.defaultPoints > 0)
+        writer.writeTextElement(QStringLiteral("defaultPoints"),
+                                QString::number(metadata.defaultPoints));
     if (!metadata.sourceUrl.isEmpty())
         writer.writeTextElement(QStringLiteral("sourceUrl"), metadata.sourceUrl);
+    if (!metadata.license.isEmpty())
+        writer.writeTextElement(QStringLiteral("license"), metadata.license);
+    if (!metadata.attribution.isEmpty())
+        writer.writeTextElement(QStringLiteral("attribution"), metadata.attribution);
+    if (metadata.modifiedSinceSource)
+        writer.writeTextElement(QStringLiteral("modifiedSinceSource"),
+                                QStringLiteral("true"));
     if (!metadata.notes.isEmpty())
         writer.writeTextElement(QStringLiteral("notes"), metadata.notes);
     writer.writeEndElement();
@@ -360,15 +401,25 @@ QByteArray CatalogXml::toXml(const Catalog &catalog)
                     writer.writeAttribute(QStringLiteral("order"), QString::number(question.order));
                     writer.writeAttribute(QStringLiteral("type"),
                                           questionTypeToString(question.type));
-                    writer.writeAttribute(QStringLiteral("points"), QString::number(question.points));
+                    if (question.points > 0) {
+                        writer.writeAttribute(QStringLiteral("points"),
+                                              QString::number(question.points));
+                    }
                     if (question.locked)
                         writer.writeAttribute(QStringLiteral("locked"), QStringLiteral("true"));
+                    if (question.textFormat == TextFormat::Latex) {
+                        writer.writeAttribute(QStringLiteral("textFormat"),
+                                              QStringLiteral("latex"));
+                    }
                     writer.writeTextElement(QStringLiteral("text"), question.text);
                     writer.writeStartElement(QStringLiteral("answers"));
                     for (const Answer &answer : question.answers) {
                         writer.writeEmptyElement(QStringLiteral("answer"));
                         writer.writeAttribute(QStringLiteral("id"), answer.id);
-                        writer.writeAttribute(QStringLiteral("text"), answer.text);
+                        if (!answer.text.isEmpty())
+                            writer.writeAttribute(QStringLiteral("text"), answer.text);
+                        if (!answer.image.isEmpty())
+                            writer.writeAttribute(QStringLiteral("image"), answer.image);
                         writer.writeAttribute(QStringLiteral("correct"),
                                               answer.correct ? QStringLiteral("true")
                                                              : QStringLiteral("false"));

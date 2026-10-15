@@ -36,6 +36,25 @@ std::optional<ExamClass> examClassFromString(const QString &value)
     return std::nullopt;
 }
 
+QString textFormatToString(TextFormat value)
+{
+    return value == TextFormat::Latex ? QStringLiteral("latex") : QStringLiteral("plain");
+}
+
+std::optional<TextFormat> textFormatFromString(const QString &value)
+{
+    if (value == QLatin1String("plain"))
+        return TextFormat::Plain;
+    if (value == QLatin1String("latex"))
+        return TextFormat::Latex;
+    return std::nullopt;
+}
+
+int Question::effectivePoints(const CatalogMetadata &metadata) const
+{
+    return points > 0 ? points : metadata.defaultPoints;
+}
+
 QString questionTypeToString(QuestionType value)
 {
     return value == QuestionType::Multiple ? QStringLiteral("multiple")

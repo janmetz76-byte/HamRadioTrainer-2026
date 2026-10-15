@@ -77,6 +77,11 @@ target_link_libraries(hrt-catalog-tool PRIVATE hrt_core)
 set_target_properties(hrt-catalog-tool PROPERTIES OUTPUT_NAME "hrt-catalog-tool")
 install(TARGETS hrt-catalog-tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+# Imports the Bundesnetzagentur question catalog (DL-DE-BY-2.0). It is only
+# needed to regenerate the catalogs, never at runtime.
+add_executable(hrt-catalog-import tools/catalog-import.cpp)
+target_link_libraries(hrt-catalog-import PRIVATE hrt_core)
+
 if(Qt6Test_FOUND)
     enable_testing()
     add_executable(tst_catalog tests/tst_catalog.cpp)

@@ -7,8 +7,8 @@
     * hand-editable in any editor and diffable in git
     * stable element names (English) so that tooling stays language neutral
 
-  Element and attribute names are English on purpose. The user interface and
-  all documentation are German; the data format is not.
+  The schema is shaped around the machine readable question catalog of the
+  Bundesnetzagentur (DL-DE-BY-2.0). See data/catalogs/ for imported catalogs.
 -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
            elementFormDefault="qualified">
@@ -45,7 +45,20 @@
         <xs:element name="validFrom"   type="xs:date"/>
         <xs:element name="validUntil"  type="xs:date" minOccurs="0"/>
         <xs:element name="language"    type="languageType" minOccurs="0"/>
+        <!-- Default penalty per wrong answer when a question carries no
+             "points". The Bundesnetzagentur catalog does not publish penalty
+             points, so an imported catalog leaves them at 0. -->
+        <xs:element name="defaultPoints" type="xs:nonNegativeInteger" minOccurs="0"/>
         <xs:element name="sourceUrl"   type="xs:anyURI" minOccurs="0"/>
+        <!-- SPDX style licence identifier of the question text, e.g.
+             "DL-DE-BY-2.0". Required whenever the catalog derives from an
+             external source, because attribution is a licence condition. -->
+        <xs:element name="license"     type="xs:string" minOccurs="0"/>
+        <!-- Mandatory source notice, verbatim, when "license" is set. -->
+        <xs:element name="attribution" type="xs:string" minOccurs="0"/>
+        <!-- True as soon as anybody edited the catalog after the import.
+             Attribution licences require that changes are indicated. -->
+        <xs:element name="modifiedSinceSource" type="xs:boolean" minOccurs="0"/>
         <xs:element name="notes"       type="xs:string" minOccurs="0"/>
       </xs:sequence>
     </xs:complexType>
@@ -72,7 +85,7 @@
   <xs:element name="parts">
     <xs:complexType>
       <xs:sequence>
-        <xs:element ref="part" maxOccurs="unbounded"/>
+        <xs:element ref="part" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -80,7 +93,7 @@
   <xs:element name="part">
     <xs:complexType>
       <xs:sequence>
-        <xs:element ref="section" maxOccurs="unbounded"/>
+        <xs:element ref="section" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
       <xs:attribute name="id"    type="xs:ID" use="required"/>
       <xs:attribute name="title" type="xs:string" use="required"/>
@@ -94,7 +107,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element name="selection" type="selectionType" minOccurs="0"/>
-        <xs:element ref="chapters"/>
+        <xs:element ref="chapters" minOccurs="0"/>
       </xs:sequence>
       <xs:attribute name="id"    type="xs:ID" use="required"/>
       <xs:attribute name="title" type="xs:string" use="required"/>
@@ -102,10 +115,11 @@
     </xs:complexType>
   </xs:element>
 
-  <!-- How the exam simulator draws a paper for this section. -->
+  <!-- How the exam simulator draws a paper for this section. Omitted while the
+       official number of questions is not documented in the source. -->
   <xs:complexType name="selectionType">
-    <xs:attribute name="questions"    type="xs:nonNegativeInteger" use="required"/>
-    <xs:attribute name="errorPoints"  type="xs:nonNegativeInteger" use="optional"/>
+    <xs:attribute name="questions"   type="xs:nonNegativeInteger" use="required"/>
+    <xs:attribute name="errorPoints" type="xs:nonNegativeInteger" use="optional"/>
   </xs:complexType>
 
   <!-- ==================== chapters ==================== -->
@@ -113,7 +127,7 @@
   <xs:element name="chapters">
     <xs:complexType>
       <xs:sequence>
-        <xs:element ref="chapter" maxOccurs="unbounded"/>
+        <xs:element ref="chapter" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -121,7 +135,7 @@
   <xs:element name="chapter">
     <xs:complexType>
       <xs:sequence>
-        <xs:element ref="questions"/>
+        <xs:element ref="questions" minOccurs="0"/>
       </xs:sequence>
       <xs:attribute name="id"    type="xs:ID" use="required"/>
       <xs:attribute name="title" type="xs:string" use="required"/>
@@ -134,7 +148,7 @@
   <xs:element name="questions">
     <xs:complexType>
       <xs:sequence>
-        <xs:element ref="question" maxOccurs="unbounded"/>
+        <xs:element ref="question" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -152,10 +166,14 @@
       <xs:attribute name="order"  type="xs:positiveInteger" use="required"/>
       <!-- "single": exactly one correct answer, "multiple": one or more -->
       <xs:attribute name="type"   type="questionType" use="required"/>
-      <!-- Fehlerpunkte: points deducted per wrong answer in the real exam -->
-      <xs:attribute name="points" type="xs:nonNegativeInteger" use="required"/>
+      <!-- Penalty charged per wrong answer. 0 means unknown; the effective
+           value then falls back to metadata/defaultPoints. -->
+      <xs:attribute name="points" type="xs:nonNegativeInteger" use="optional" default="0"/>
       <!-- Gesperrt: question is excluded from generated papers -->
       <xs:attribute name="locked" type="xs:boolean" use="optional" default="false"/>
+      <!-- "latex" marks text and answer texts that contain $...$ markup -->
+      <xs:attribute name="textFormat" type="textFormatType" use="optional"
+                    default="plain"/>
     </xs:complexType>
   </xs:element>
 
@@ -163,6 +181,13 @@
     <xs:restriction base="xs:string">
       <xs:enumeration value="single"/>
       <xs:enumeration value="multiple"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="textFormatType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="plain"/>
+      <xs:enumeration value="latex"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -176,8 +201,11 @@
 
   <xs:element name="answer">
     <xs:complexType>
+      <!-- Either text or a picture, never neither: the Bundesnetzagentur
+           catalog contains questions whose four answers are pure images. -->
       <xs:attribute name="id"      type="xs:ID" use="required"/>
-      <xs:attribute name="text"    type="xs:string" use="required"/>
+      <xs:attribute name="text"    type="xs:string" use="optional"/>
+      <xs:attribute name="image"   type="relativePathType" use="optional"/>
       <xs:attribute name="correct" type="xs:boolean" use="required"/>
       <xs:attribute name="order"   type="xs:positiveInteger" use="required"/>
     </xs:complexType>

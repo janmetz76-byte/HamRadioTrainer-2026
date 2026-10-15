@@ -55,6 +55,15 @@ jobs:
           TOOL=$(find build -name 'hrt-catalog-tool*' -type f | head -1)
           "$TOOL" data/catalogs/*.xml
 
+      - name: Kataloge normalisierbar
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL=$(find build -name 'hrt-catalog-tool*' -type f | head -1)
+          # Fails if any catalog deviates from the canonical format, which would
+          # mean that re-saving it produces a spurious diff.
+          "$TOOL" --normalize data/catalogs/*.xml
+
       - name: Kataloge gegen das Schema prüfen
         if: runner.os != 'Windows'
         run: |

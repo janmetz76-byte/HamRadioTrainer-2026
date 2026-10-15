@@ -54,8 +54,17 @@ Catalog makeMinimalCatalog()
     question.text = QStringLiteral("Frage?");
     question.points = 2;
     question.history.addedOn = QDate(2026, 1, 1);
-    question.answers = {Answer{QStringLiteral("a"), QStringLiteral("A"), true, 1},
-                        Answer{QStringLiteral("b"), QStringLiteral("B"), false, 2}};
+    Answer a;
+    a.id = QStringLiteral("a");
+    a.text = QStringLiteral("A");
+    a.correct = true;
+    a.order = 1;
+    Answer b;
+    b.id = QStringLiteral("b");
+    b.text = QStringLiteral("B");
+    b.correct = false;
+    b.order = 2;
+    question.answers = {a, b};
     chapter.questions.append(question);
 
     section.chapters.append(chapter);

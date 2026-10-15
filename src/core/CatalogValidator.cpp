@@ -68,6 +68,23 @@ bool CatalogValidator::validate(const Catalog &catalog, QVector<CatalogIssue> *i
         add(issues, IssueSeverity::Error, QStringLiteral("metadata"),
             QStringLiteral("'validUntil' liegt vor 'validFrom'."));
     }
+    if (!metadata.license.isEmpty() && metadata.attribution.isEmpty()) {
+        add(issues, IssueSeverity::Error, QStringLiteral("metadata"),
+            QStringLiteral("Es ist eine Lizenz ('%1') angegeben, aber kein Quellenvermerk "
+                           "(attribution). Namensnennungs-Lizenzen wie DL-DE-BY-2.0 verlangen "
+                           "den Quellenvermerk im Datensatz.").arg(metadata.license));
+    }
+    if (!metadata.attribution.isEmpty() && metadata.license.isEmpty()) {
+        add(issues, IssueSeverity::Warning, QStringLiteral("metadata"),
+            QStringLiteral("Es ist ein Quellenvermerk angegeben, aber keine Lizenz."));
+    }
+    if (!metadata.license.isEmpty() && !metadata.modifiedSinceSource) {
+        add(issues, IssueSeverity::Warning, QStringLiteral("metadata"),
+            QStringLiteral("Der Katalog stammt aus einem fremden Datensatz. Sobald er von Hand "
+                           "geändert wird, muss modifiedSinceSource auf true gesetzt werden, "
+                           "damit die Änderung im Quellenvermerk kenntlich ist."));
+    }
+
     if (catalog.parts.isEmpty()) {
         add(issues, IssueSeverity::Error, QStringLiteral("catalog"),
             QStringLiteral("Der Katalog enthält keine Prüfungsteile."));
@@ -79,7 +96,24 @@ bool CatalogValidator::validate(const Catalog &catalog, QVector<CatalogIssue> *i
                 QStringLiteral("Der Prüfungsteil '%1' enthält keine Abschnitte.").arg(part.id));
         }
         for (const Section &section : part.sections)
-            checkSection(section, basePath, issues, &seenIds);
+            checkSection(section, basePath, metadata, issues, &seenIds);
+    }
+
+    if (metadata.defaultPoints <= 0) {
+        int withoutPoints = 0;
+        for (const Question *question : catalog.questions()) {
+            if (question->effectivePoints(metadata) <= 0)
+                ++withoutPoints;
+        }
+        if (withoutPoints > 0) {
+            add(issues, IssueSeverity::Warning, QStringLiteral("metadata"),
+                QStringLiteral("Für %1 von %2 Fragen sind keine Fehlerpunkte hinterlegt, weder "
+                               "an der Frage noch über defaultPoints. Prüfungssimulationen "
+                               "können das Fehlerpunktbudget der Prüfungsordnung dann nicht "
+                               "einhalten.")
+                    .arg(withoutPoints)
+                    .arg(catalog.totalQuestionCount()));
+        }
     }
 
     if (catalog.totalQuestionCount() == 0) {
@@ -99,6 +133,7 @@ bool CatalogValidator::validate(const Catalog &catalog, QVector<CatalogIssue> *i
 }
 
 void CatalogValidator::checkSection(const Section &section, const QString &basePath,
+                                    const CatalogMetadata &metadata,
                                     QVector<CatalogIssue> *issues, QStringList *seenIds)
 {
     if (section.chapters.isEmpty()) {
@@ -136,13 +171,14 @@ void CatalogValidator::checkSection(const Section &section, const QString &baseP
                 QStringLiteral("Kapitel '%1' enthält keine Fragen.").arg(chapter.id));
         }
         for (const Question &question : chapter.questions)
-            checkQuestion(question, chapter.id, basePath, issues, seenIds);
+            checkQuestion(question, chapter.id, basePath, metadata, issues, seenIds);
     }
 }
 
 void CatalogValidator::checkQuestion(const Question &question, const QString &chapterId,
-                                     const QString &basePath, QVector<CatalogIssue> *issues,
-                                     QStringList *seenIds)
+                                     const QString &basePath,
+                                     const CatalogMetadata &metadata,
+                                     QVector<CatalogIssue> *issues, QStringList *seenIds)
 {
     const QString location = question.id;
 
@@ -153,23 +189,38 @@ void CatalogValidator::checkQuestion(const Question &question, const QString &ch
             QStringLiteral("Die Kennung '%1' wird mehrfach verwendet.").arg(question.id));
     } else {
         seenIds->append(question.id);
-        if (!chapterId.isEmpty() && !question.id.startsWith(chapterId)) {
-            add(issues, IssueSeverity::Warning, location,
-                QStringLiteral("Kennung '%1' beginnt nicht mit der Kapitelkennung '%2'. Die "
-                               "Zuordnung wird beim Nachtragen von Fragen unübersichtlich.")
-                    .arg(question.id, chapterId));
-        }
     }
+    Q_UNUSED(chapterId)
 
-    if (question.text.isEmpty()) {
+    if (question.text.isEmpty() && question.image.isEmpty()) {
         add(issues, IssueSeverity::Error, location,
-            QStringLiteral("Frage '%1' hat keinen Fragetext.").arg(question.id));
+            QStringLiteral("Frage '%1' hat weder Fragetext noch Fragebild.").arg(question.id));
     }
 
     if (question.answers.size() < 2) {
         add(issues, IssueSeverity::Error, location,
             QStringLiteral("Frage '%1' hat weniger als zwei Antwortmöglichkeiten.")
                 .arg(question.id));
+    }
+
+    for (const Answer &answer : question.answers) {
+        if (!answer.hasContent()) {
+            add(issues, IssueSeverity::Error, location,
+                QStringLiteral("Frage '%1': Antwort '%2' hat weder Text noch Bild.")
+                    .arg(question.id, answer.id));
+        }
+        if (!answer.image.isEmpty()) {
+            if (!isSafeRelativePath(answer.image)) {
+                add(issues, IssueSeverity::Error, location,
+                    QStringLiteral("Frage '%1': Bildpfad der Antwort '%2' muss relativ sein und "
+                                   "darf das Katalogverzeichnis nicht verlassen.")
+                        .arg(question.id, answer.id));
+            } else if (!basePath.isEmpty() && !QFileInfo::exists(QDir(basePath).filePath(answer.image))) {
+                add(issues, IssueSeverity::Warning, location,
+                    QStringLiteral("Frage '%1': Antwortbild '%2' wurde nicht gefunden.")
+                        .arg(question.id, answer.image));
+            }
+        }
     }
 
     const QVector<int> correct = question.correctAnswerIndexes();
@@ -186,11 +237,6 @@ void CatalogValidator::checkQuestion(const Question &question, const QString &ch
             QStringLiteral("Frage '%1' ist als 'multiple' deklariert, hat aber nur eine richtige "
                            "Antwort. Die Mehrfachauswahl ist damit nicht erforderlich.")
                 .arg(question.id));
-    }
-
-    if (question.points <= 0) {
-        add(issues, IssueSeverity::Error, location,
-            QStringLiteral("Frage '%1' hat keine Fehlerpunkte (points).").arg(question.id));
     }
 
     if (!question.history.addedOn.isValid()) {
