@@ -27,14 +27,43 @@
 namespace hrt {
 namespace {
 
-/// Box 0 is where wrong answers land, the top box is what is really secure.
+/// Name of a Leitner stage.
+///
+/// The word "Ordner" told nobody anything: it names the container, not the
+/// meaning. The 2015 trainer called the same thing a "Lernkartei" and spoke of
+/// "Fragen der Stufe ...", and the learner is meant to understand the label,
+/// so every stage gets a plain word next to the number.
 QString boxLabel(int box)
 {
     if (box <= 0)
-        return QObject::tr("wackelig");
+        return QObject::tr("neu");
     if (box >= Scheduler::MaxBox)
         return QObject::tr("gefestigt");
-    return QObject::tr("Ordner %1").arg(box);
+    switch (box) {
+    case 1:
+        return QObject::tr("Stufe 1 · ungesichert");
+    case 2:
+        return QObject::tr("Stufe 2 · wird gelernt");
+    case 3:
+        return QObject::tr("Stufe 3 · wird gefestigt");
+    default:
+        return QObject::tr("Stufe %1 · fast sicher").arg(box);
+    }
+}
+
+/// Explains what a stage means and how the learner gets there.
+QString boxDescription(int box)
+{
+    if (box <= 0)
+        return QObject::tr("Neu: nie richtig beantwortet. Wird zuerst wiederholt.");
+    if (box >= Scheduler::MaxBox)
+        return QObject::tr("Gefestigt: mehrfach richtig in Folge. Wird nur selten "
+                          "wiederholt und zählt als bekannt.");
+    return QObject::tr("Stufe %1: richtig beantwortet, aber noch nicht gefestigt. Jede "
+                       "richtige Antwort geht eine Stufe höher, jede falsche zwei "
+                       "Stufen zurück. Mit steigender Stufe wird die Frage immer "
+                       "seltener abgefragt.")
+        .arg(box);
 }
 
 } // namespace
@@ -63,9 +92,25 @@ LearningWidget::LearningWidget(QWidget *parent)
     m_boxes->setWordWrap(false);
     m_boxes->verticalHeader()->setDefaultSectionSize(64);
     m_boxes->setFixedHeight(72);
-    for (int box = 0; box <= Scheduler::MaxBox; ++box)
-        m_boxes->setItem(0, box, new QTableWidgetItem(boxLabel(box)));
+    for (int box = 0; box <= Scheduler::MaxBox; ++box) {
+        auto *cell = new QTableWidgetItem(boxLabel(box));
+        cell->setToolTip(boxDescription(box));
+        cell->setTextAlignment(Qt::AlignCenter);
+        m_boxes->setItem(0, box, cell);
+    }
+    m_boxes->setToolTip(boxDescription(1));
     layout->addWidget(m_boxes);
+
+    // Wer "Ordner 1 bis 3" nicht kennt, kann die Anzeige nicht deuten. Ein
+    // Satz darueber kostet nichts und beantwortet die Frage.
+    auto *legend = new QLabel(
+        tr("Lernstufen nach Leitner: eine richtige Antwort hebt die Frage eine Stufe, eine "
+           "falsche drückt sie zwei Stufen zurück. Je höher die Stufe, desto seltener wird "
+           "die Frage wiederholt. Die Stufe gefestigt zählt als bekannt."),
+        this);
+    legend->setWordWrap(true);
+    legend->setStyleSheet(QStringLiteral("color: palette(mid);"));
+    layout->addWidget(legend);
 
     m_parts = new QTableWidget(0, 6, this);
     m_parts->setObjectName(QStringLiteral("fortschrittJePruefungsteil"));

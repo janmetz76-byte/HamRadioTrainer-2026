@@ -99,7 +99,7 @@ void MainWindow::buildUi()
             return;
         const auto answer = QMessageBox::question(
             this, tr("Lernfortschritt zurücksetzen"),
-            tr("Alle Leitner-Ordner, Fälligkeiten und Trefferquoten dieses Katalogs werden "
+            tr("Alle Lernstufen, Fälligkeiten und Trefferquoten dieses Katalogs werden "
                "gelöscht. Die Fragenkataloge selbst bleiben unverändert. Wirklich löschen?"),
             QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
         if (answer != QMessageBox::Yes)

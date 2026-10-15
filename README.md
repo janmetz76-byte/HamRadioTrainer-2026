@@ -303,7 +303,7 @@ Originalprüfung.
 ### Gewichtete Auswahl
 
 Sicher beherrschte Fragen sollen seltener gestellt werden als unsichere. Der
-`Scheduler` hält je Frage einen Leitner-Ordner (0–5), die Trefferquote, das
+`Scheduler` hält je Frage eine Lernstufe (0–5), die Trefferquote, das
 Datum der letzten Beantwortung, den Fälligkeitstermin und die
 Selbsteinschätzung des Lernenden.
 
@@ -312,7 +312,7 @@ Gewicht einer Frage:
 | Faktor | Wirkung |
 |---|---|
 | noch nie gestellt | Faktor 10, damit der Pool vollständig einmal durchlaufen wird |
-| Leitner-Ordner | Faktor 0,45 je Ordner |
+| Lernstufe (Leitner) | Faktor 0,45 je Stufe |
 | „sicher" beantwortet | × 0,30 |
 | „ziemlich sicher" | × 0,55 |
 | „unsicher" | × 1,60 |
@@ -320,10 +320,10 @@ Gewicht einer Frage:
 | heute schon gestellt | × 0,05, verhindert Doppelungen in einer Sitzung |
 | lange nicht gesehen | × bis 2,0 nach 60 Tagen |
 
-Eine richtige Antwort, die der Lernende aber nur geraten hat, erhöht den Ordner
+Eine richtige Antwort, die der Lernende aber nur geraten hat, erhöht die Stufe
 kaum – sie kommt also bald wieder. Eine als „sicher" empfundene richtige
 Antwort erhöht ihn doppelt und verschiebt die Frage weit hinaus. Falsche
-Antworten senken den Ordner um zwei Stufen.
+Antworten senken die Stufe um zwei.
 
 Eine Prüfungssimulation kann die Fragen je Prüfungsteil als Quote vorgeben
 (`Options::questionsPerPart`), was für Klasse N mit ihren drei Prüfungsteilen
@@ -344,7 +344,7 @@ Erledigt:
   N, E und A (571 / 1034 / 1750) inklusive 687 Bildern, schemakonform geprüft
 * die fünf Prüfungsteile V, B, N, E, A mit Prüfungsumfang nach
   Amtsblatt-Verfügung 29/2024
-* Lernlogik mit Leitner-Ordnern, Fälligkeit und Selbsteinschätzung
+* Lernlogik mit Lernstufen nach Leitner, Fälligkeit und Selbsteinschätzung
 * gewichtete Fragenauswahl ohne Ersetzung und immer gemischte Antwortreihenfolge
 * Prüfungssimulation: 25 Fragen je Teil, Bestehensschwelle 19 Punkte je Teil,
   Zeitlimit 45 Minuten bzw. 60 Minuten für Klasse A, Auswertung je Prüfungsteil
@@ -369,12 +369,12 @@ Katalog, weil die Kataloge bearbeitbar und Teil der Auslieferung sind:
 | Windows | `%APPDATA%\HamRadioTrainer2026\fortschritt-de-e.json` |
 
 Die Datei wird nach jeder ausgewerteten Prüfung und beim Beenden atomar
-geschrieben. Sie enthält Leitner-Ordner, Trefferquote, Fälligkeit,
+geschrieben. Sie enthält Lernstufe, Trefferquote, Fälligkeit,
 Selbsteinschätzung und den SHA-256-Abdruck der Katalogdatei, zu der sie gehört.
 
 **Wird der Katalog von Hand geändert, gilt der Fortschritt als veraltet und wird
 verworfen.** Das ist beabsichtigt: nach dem Umschreiben einer Frage wäre ihr alter
-Ordner sonst eine falsche Aussage darüber, wie gut sie beherrscht wird. Nach dem
+Stufe sonst eine falsche Aussage darüber, wie gut sie beherrscht wird. Nach dem
 Verwerfen baut sich der Fortschritt neu auf. Lernstände zu Fragen, die es im
 Katalog nicht mehr gibt, werden beim Laden ebenfalls verworfen.
 
@@ -386,7 +386,12 @@ Der Tab *Lernen* zeigt den Stand und lädt zum Üben ein:
 
 * **Zusammenfassung** – beantwortete Fragen, Trefferquote, fällige Wiederholungen,
   nie gesehene, wackelige und gefestigte Fragen
-* **Leitner-Verteilung** – wie viele beantwortete Fragen in welchem Ordner liegen
+* **Lernstufen-Verteilung** – wie viele beantwortete Fragen in welcher Stufe liegen.
+  Die Stufen heißen *neu, ungesichert, wird gelernt, wird gefestigt, fast sicher,
+  gefestigt*. Der Sinn: eine richtige Antwort hebt die Frage eine Stufe, eine
+  falsche drückt sie zwei zurück, und mit steigender Stufe wird die Frage immer
+  seltener wiederholt. *gefestigt* zählt als bekannt. Dieselben Begriffe
+  benutzt das Original von 2015, das von „Lernkarteien" und „Stufen" spricht.
 * **Fortschritt je Prüfungsteil** – Fragen, beantwortet, gefestigt, wackelig und
   Trefferquote für V, B, N, E und A
 * **Übungsrunde** – die schwachen Fragen zuerst, filterbar nach „nur fällige“,
