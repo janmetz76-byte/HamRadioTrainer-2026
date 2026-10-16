@@ -36,6 +36,7 @@ add_library(hrt_core STATIC
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
     src/core/LatexFormatter.cpp
+    src/core/AppIdentity.cpp
     src/core/CatalogLocator.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp

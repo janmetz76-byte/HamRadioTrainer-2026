@@ -6,6 +6,7 @@
 #include "MainWindow.h"
 #include "StartupDialog.h"
 
+#include "core/AppIdentity.h"
 #include "core/CatalogLocator.h"
 
 #include <QLabel>
@@ -92,6 +93,7 @@ class StartupFlowTest : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void init();
     void cleanup();
 
@@ -109,6 +111,15 @@ private:
     /// Returns whether the assistant was shown.
     bool runStartup(bool expectAssistant);
 };
+
+void StartupFlowTest::initTestCase()
+{
+    // Dieselben Einstellungsnamen wie das Programm: ohne sie legt QSettings
+    // unter Windows nichts Brauchbares ab, und der Test pruefte auf dieser
+    // Plattform einen anderen Speicherort als die Anwendung.
+    hrt::setApplicationIdentity();
+    QStandardPaths::setTestModeEnabled(true);
+}
 
 void StartupFlowTest::init()
 {

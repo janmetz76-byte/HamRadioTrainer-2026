@@ -5,11 +5,13 @@
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "CatalogView.h"
 
+#include "core/AppIdentity.h"
 #include "core/CatalogXml.h"
 
 #include <QHeaderView>
 #include <QLabel>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTableWidget>
 #include <QTreeWidget>
 #include <QtTest>
@@ -85,6 +87,7 @@ class CatalogViewTest : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void treeCarriesTheQuestionCount();
     void selectingAChapterFillsTheQuestionList();
     void listUsesTheColumnsOfThe2015Trainer();
@@ -93,6 +96,16 @@ private slots:
     void columnWidthsCanBeDraggedAndSurviveARestart();
     void partTitlesCarryNoRegulation();
 };
+
+void CatalogViewTest::initTestCase()
+{
+    // Die Ansicht merkt ihre Spaltenbreiten in den Einstellungen. Ohne
+    // denselben Namen wie im Programm und ohne isolierten Speicherort
+    // entdeckt der Test auf dem Rechner des Entwicklers die Einstellungen
+    // seines Nachbarn - und gar nichts unter Windows.
+    hrt::setApplicationIdentity();
+    QStandardPaths::setTestModeEnabled(true);
+}
 
 void CatalogViewTest::treeCarriesTheQuestionCount()
 {
