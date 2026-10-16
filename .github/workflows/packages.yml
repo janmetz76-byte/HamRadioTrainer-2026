@@ -83,7 +83,9 @@ jobs:
               felder=$(dpkg-deb -f "$paket" Package Version Depends)
             else
               inhalt=$(rpm -qlp "$paket")
-              felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License)")
+              # Requires gehoert dazu, sonst sieht die Pruefung unten gar nicht,
+              # welche Abhaengigkeiten das rpm nennt.
+              felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License|Requires)")
             fi
             echo "$felder"
             # Die drei Kataloge muessen dabei sein.
