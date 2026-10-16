@@ -55,6 +55,17 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure -C Release
 
+      - name: Ausgebrochene Tests mit Exit-Code melden
+        if: failure()
+        shell: pwsh
+        run: |
+          foreach ($t in @('tst_catalogview', 'tst_startupflow')) {
+            $exe = "build/$t.exe"
+            if (-not (Test-Path $exe)) { continue }
+            & $exe 2>&1 | Out-String | Write-Host
+            Write-Host "DIAGNOSE $t exit=$LASTEXITCODE"
+          }
+
       - name: Katalogwerkzeug prüfen
         shell: bash
         run: |
@@ -75,6 +86,9 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
+          # xmllint gehoert nicht mehr zum Vorinstallierten des Runners.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxml2-utils
           for f in data/catalogs/*.xml; do
             xmllint --noout --schema schema/catalog.xsd "$f"
           done
