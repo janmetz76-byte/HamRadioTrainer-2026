@@ -83,9 +83,12 @@ jobs:
               felder=$(dpkg-deb -f "$paket" Package Version Depends)
             else
               inhalt=$(rpm -qlp "$paket")
-              # Requires gehoert dazu, sonst sieht die Pruefung unten gar nicht,
-              # welche Abhaengigkeiten das rpm nennt.
-              felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License|Requires)")
+              felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License)")
+              # "rpm -qip" zeigt niemals Abhaengigkeiten an, auch nicht mit
+              # grep darauf. Die holt man sich gesondert, sonst prueft die
+              # Zeile unten gegen eine leere Liste und meldet immer Qt als
+              # fehlend.
+              abhaengig=$(rpm -qp --requires "$paket")
             fi
             echo "$felder"
             # Die drei Kataloge muessen dabei sein.
@@ -104,7 +107,8 @@ jobs:
               grep -qi "qt6" <<< "$felder" \
                 || { echo "FEHLER: das deb nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
             else
-              grep -qi "qt6" <<< "$felder" \
+              echo "rpm verlangt: $abhaengig"
+              grep -qi "qt6" <<< "$abhaengig" \
                 || { echo "FEHLER: das rpm nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
             fi
             # Und die Bilder, sonst waere jede Bildfrage unbrauchbar.
