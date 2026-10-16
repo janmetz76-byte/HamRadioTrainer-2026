@@ -87,10 +87,24 @@ jobs:
             fi
             echo "$felder"
             # Die drei Kataloge muessen dabei sein.
+            # Kein "echo | grep -q": grep -q bricht nach dem ersten Treffer ab,
+            # echo bekommt eine kaputte Pipe und das Ganze faellt unter
+            # "set -o pipefail" als Fehler durch - auch wenn der Katalog
+            # drinsteht. Der Herestring liest die Liste nur.
             for klasse in N E A; do
-              echo "$inhalt" | grep -q "de-amateurfunk-$klasse.xml" \
+              grep -q "de-amateurfunk-$klasse.xml" <<< "$inhalt" \
                 || { echo "FEHLT: Katalog $klasse"; exit 1; }
             done
+            # Und die Laufzeitabhaengigkeiten muessen Qt nennen. Aus einer
+            # aqt-Installation laesst sich kein dpkg-Paket ableiten, darum
+            # steht Qt hier nicht von allein drin (siehe CPACK_DEBIAN_PACKAGE_DEPENDS).
+            if [[ $paket == *.deb ]]; then
+              grep -qi "qt6" <<< "$felder" \
+                || { echo "FEHLER: das deb nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
+            else
+              grep -qi "qt6" <<< "$felder" \
+                || { echo "FEHLER: das rpm nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
+            fi
             # Und die Bilder, sonst waere jede Bildfrage unbrauchbar.
             bilder=$(echo "$inhalt" | grep -c '\.svg$')
             echo "Bilder im Paket: $bilder"
