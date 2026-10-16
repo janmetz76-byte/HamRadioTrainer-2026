@@ -432,8 +432,11 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
     const QDate validFrom =
         QDate::fromString(metadata.value(QStringLiteral("valid_from")).toString(), Qt::ISODate);
 
-    catalog.metadata.title =
-        QStringLiteral("Prüfungsfragen Klasse %1 – %2").arg(QLatin1Char(letter), edition);
+    // QString::arg(QChar, QString) gibt es erst ab Qt 6.12; der Import soll
+    // aber schon mit 6.5 laufen. fromLatin1 ist die Form, die ueberall
+    // funktioniert.
+    catalog.metadata.title = QStringLiteral("Prüfungsfragen Klasse %1 – %2")
+                                 .arg(QString::fromLatin1(&letter, 1), edition);
     catalog.metadata.examClass = examClass;
     catalog.metadata.examId = QStringLiteral("DE-%1").arg(QLatin1Char(letter));
     catalog.metadata.authority = QStringLiteral(
@@ -494,7 +497,7 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
         // in der Hilfe - an jeder Zeile hier nur wiederholt, stoert sie beim
         // Lesen der Liste der Pruefungsteile.
         part.title = QStringLiteral("%1 (%2)")
-                         .arg(QLatin1Char(examPart.letter), examPart.title);
+                         .arg(QString::fromLatin1(&examPart.letter, 1), examPart.title);
         part.order = partIndex;
         part.selection.questions = ExamRules::Questions;
         part.selection.errorPoints = ExamRules::errorPoints();
