@@ -234,8 +234,19 @@ void ExamWidgetTest::imageOnlyAnswersShowTheirImageNextToTheChoice()
     }
     QVERIFY2(question, "Frage NI104 nicht im Katalog N");
     QVERIFY(!question->answers.isEmpty());
-    QVERIFY(question->answers.first().image.contains(QStringLiteral("NI104_a.svg")));
-    QVERIFY(question->answers.first().text.simplified().isEmpty());
+
+    // Die Bildantwort steht nicht mehr an erster Stelle: der Import verteilt
+    // die Position der richtigen Antwort ueber alle vier Plaetze. Gesucht
+    // wird deshalb nach dem Bild, nicht nach der Position.
+    int imageAnswer = -1;
+    for (int i = 0; i < question->answers.size(); ++i) {
+        if (question->answers.at(i).image.contains(QStringLiteral("NI104_a.svg"))) {
+            imageAnswer = i;
+            break;
+        }
+    }
+    QVERIFY2(imageAnswer >= 0, "die Antwort mit NI104_a.svg fehlt im Katalog N");
+    QVERIFY(question->answers.at(imageAnswer).text.simplified().isEmpty());
 
     AnswerView *view = new AnswerView;
     QVector<int> order;

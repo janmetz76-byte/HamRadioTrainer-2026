@@ -42,3 +42,6 @@ Thumbs.db
 # Lokale Lernstatistiken und Konfiguration des Anwenders
 *.ini
 !data/**/*.ini
+
+# CTest-Artefakte
+/Testing/

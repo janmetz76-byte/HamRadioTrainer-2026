@@ -60,6 +60,7 @@ private slots:
     void nextUnansweredVisitsEveryQuestionOnce();
     void invalidAnswerPositionsAreIgnored();
     void trainingPaperHasNoPassMarks();
+    void correctAnswerIsNotAlwaysFirst();
 };
 
 /// A fully correct class E paper: 19 of 25 points in every one of the four
@@ -244,6 +245,63 @@ void ExamSessionTest::invalidAnswerPositionsAreIgnored()
     QVERIFY(session.partLetterAt(99999).isEmpty());
     QCOMPARE(session.selectedPosition(99999), -1);
     QCOMPARE(session.answeredCountOfPart(QStringLiteral("V")), 0);
+}
+
+/// The official catalogue states that the correct answer is always A, and
+/// that the exam sheets arrange the answers randomly. A learner who notices
+/// the first pattern must not be able to pass our simulation by ticking the
+/// topmost box.
+///
+/// Since the import, the catalog itself no longer carries the correct answer
+/// at position A either - it is spread over all four places by the same
+/// deterministic permutation, so that a hand edited catalog file gives
+/// nothing away either. What the test therefore checks is the distribution:
+/// in the catalog and again in the drawn paper.
+void ExamSessionTest::correctAnswerIsNotAlwaysFirst()
+{
+    Catalog catalog = loadClassCatalog("de-amateurfunk-A.xml");
+
+    // These preconditions are what makes the test meaningful.
+    int inCatalog[4] = {0, 0, 0, 0};
+    for (const Question *question : catalog.questions()) {
+        QVERIFY(question != nullptr);
+        QCOMPARE(question->answers.size(), 4);
+        int correct = -1;
+        for (int i = 0; i < question->answers.size(); ++i) {
+            if (question->answers.at(i).correct) {
+                QCOMPARE(correct, -1);
+                correct = i;
+            }
+        }
+        QVERIFY2(correct >= 0, qPrintable(question->id));
+        ++inCatalog[correct];
+    }
+    for (int position = 0; position < 4; ++position)
+        QVERIFY2(inCatalog[position] > 0,
+                 qPrintable(QStringLiteral("im Katalog kommt Position %1 nicht vor")
+                                .arg(position + 1)));
+
+    int hits[4] = {0, 0, 0, 0};
+    int examined = 0;
+    // Several papers, because one seed can easily produce a lopsided sample.
+    for (quint32 seed = 1; seed <= 40; ++seed) {
+        ExamSession session = fullExam(catalog, seed);
+        for (int i = 0; i < session.count(); ++i) {
+            const int correct = session.correctPositionAt(i);
+            QVERIFY(correct >= 0 && correct < 4);
+            ++hits[correct];
+            ++examined;
+        }
+    }
+    QVERIFY(examined > 4000);
+
+    // A shuffle that never moves, or that always favours one place, would
+    // make the learning exercise pointless. Demand a real share everywhere.
+    for (int position = 0; position < 4; ++position) {
+        const double share = double(hits[position]) / double(examined);
+        QVERIFY2(share > 0.18, qPrintable(QStringLiteral("Antwortposition %1 nur %2% erreicht")
+                                               .arg(position + 1).arg(share * 100, 0, 'f', 1)));
+    }
 }
 
 /// A training paper has no official scope, so it must not be graded against

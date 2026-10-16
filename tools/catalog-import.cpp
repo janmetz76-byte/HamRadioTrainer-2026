@@ -128,6 +128,34 @@ QString tidySourceMarkup(const QString &text)
     return result;
 }
 
+/// Deterministic permutation of answer positions, derived from the question id.
+///
+/// Deliberately written without QRandomGenerator and qHash: a hash seeded per
+/// process would produce a different catalog on every import, and a catalogue
+/// that changes under our feet cannot be checked against anything. FNV-1a over
+/// the id bytes followed by a Fisher-Yates shuffle is plain arithmetic and
+/// repeats exactly, so tools/catalog-reshuffle-answers.py can reproduce it.
+QVector<int> spreadAnswers(const QString &id, int count)
+{
+    quint32 hash = 2166136261u;
+    const QByteArray bytes = id.toUtf8();
+    for (const char byte : bytes) {
+        hash ^= static_cast<quint32>(static_cast<unsigned char>(byte));
+        hash *= 16777619u;
+    }
+
+    QVector<int> order(count);
+    for (int i = 0; i < count; ++i)
+        order[i] = i;
+    for (int i = count - 1; i > 0; --i) {
+        hash ^= hash << 13;
+        hash ^= hash >> 17;
+        hash ^= hash << 5;
+        order.swapItemsAt(i, static_cast<int>(hash % static_cast<quint32>(i + 1)));
+    }
+    return order;
+}
+
 /// Appends one source question to a chapter.
 void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &addedOn,
                  ImportStats *stats)
@@ -144,6 +172,7 @@ void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &added
 
     bool hasLatex = containsLatex(question.text);
     static const char letters[] = {'a', 'b', 'c', 'd'};
+    QVector<Answer> sourceAnswers;
     for (int i = 0; i < 4; ++i) {
         const QString letter = QString::fromLatin1(&letters[i], 1);
         Answer answer;
@@ -157,6 +186,19 @@ void fillChapter(Chapter *chapter, const QJsonObject &source, const QDate &added
         answer.correct = (i == 0);
         if (containsLatex(answer.text))
             hasLatex = true;
+        sourceAnswers.append(answer);
+    }
+
+    // The published catalog states in words that the right answer is always
+    // A. We must not carry that habit over: a learner who sees it can pass
+    // our simulation without knowing anything by ticking the top box. The
+    // answers are therefore spread across the four positions, derived from
+    // the question id so that repeated imports yield the same file.
+    const QVector<int> order = spreadAnswers(question.id, sourceAnswers.size());
+    for (int position = 0; position < order.size(); ++position) {
+        Answer answer = sourceAnswers.at(order.at(position));
+        answer.id = question.id + QLatin1Char('-') + QChar(QLatin1Char('a').unicode() + position);
+        answer.order = position + 1;
         question.answers.append(answer);
     }
 
@@ -425,8 +467,11 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
         "zählt damit einen Fehlerpunkt. "
         "Geändert gegenüber der Quelle der Bundesnetzagentur: die Lizenzkennung "
         "war dort fehlerhaft als 'DL-DE->BY-2.0' angegeben und wurde auf die "
-        "veröffentlichte Kennung DL-DE-BY-2.0 berichtigt. Am Fragenteil wurde "
-        "nichts geändert.");
+        "veröffentlichte Kennung DL-DE-BY-2.0 berichtigt. Außerdem ist in der "
+        "Quelle durchgehend die erste Antwort richtig; da die Prüfungsbögen die "
+        "Antworten mischen, wurde die Position der richtigen Antwort hier "
+        "gleichmäßig auf alle vier Plätze verteilt. Fragetext, Antworttexte und "
+        "Bildverweise sind unverändert.");
 
     const QVector<char> sheets = sheetsForClass(examClass);
     int partIndex = 0;
@@ -444,9 +489,12 @@ Catalog buildCatalog(const QJsonObject &root, const QJsonObject &metadata, ExamC
         part.id = makeId(letter,
                          {QStringLiteral("teil%1").arg(partIndex),
                           QString::fromLatin1(&examPart.letter, 1).toLower()});
-        part.title = QStringLiteral("%1 (%2) – %3")
-                         .arg(QLatin1Char(examPart.letter), examPart.title,
-                              QStringLiteral("Amtsblatt-Verfügung 29/2024"));
+        // Der Titel nennt das Blatt und seinen Inhalt. Die Verfuegung, nach
+        // der der Umfang bemisst ist, steht in den Notizen des Katalogs und
+        // in der Hilfe - an jeder Zeile hier nur wiederholt, stoert sie beim
+        // Lesen der Liste der Pruefungsteile.
+        part.title = QStringLiteral("%1 (%2)")
+                         .arg(QLatin1Char(examPart.letter), examPart.title);
         part.order = partIndex;
         part.selection.questions = ExamRules::Questions;
         part.selection.errorPoints = ExamRules::errorPoints();
