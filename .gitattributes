@@ -1,0 +1,8 @@
+# Die Katalogdateien muessen byteweise stabil bleiben: hrt-catalog-tool
+# vergleicht sie beim Normalisieren mit dem Ergebnis des eigenen Schreibers.
+# Ohne diese Festlegung checkt Git unter Windows mit core.autocrlf=true aus
+# und liefert CRLF statt LF - der Vergleich schlaegt dann fehl, obwohl sich
+# an der Datei nichts geaendert hat.
+#
+# Die SVG-Bilder werden von Git als binaer erkannt und nicht angefasst.
+* text=auto eol=lf

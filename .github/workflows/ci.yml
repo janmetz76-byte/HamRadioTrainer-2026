@@ -55,22 +55,6 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure -C Release
 
-      - name: Ausgebrochene Tests mit Exit-Code melden
-        if: failure()
-        shell: pwsh
-        run: |
-          # Qt6::Test setzt unter Windows WIN32_EXECUTABLE: das Programm hat
-          # keine Konsole, alles was QTest nach stdout schreibt, geht verloren.
-          # Deshalb braucht es fuer die Diagnose eine Logdatei.
-          foreach ($t in @('tst_catalogview', 'tst_startupflow')) {
-            $exe = "build/$t.exe"
-            if (-not (Test-Path $exe)) { continue }
-            $log = "$env:RUNNER_TEMP/$t.txt"
-            & $exe "-o" "$log,txt"
-            Write-Host "DIAGNOSE $t exit=$LASTEXITCODE"
-            if (Test-Path $log) { Get-Content $log | Write-Host }
-          }
-
       - name: Katalogwerkzeug prüfen
         shell: bash
         run: |
