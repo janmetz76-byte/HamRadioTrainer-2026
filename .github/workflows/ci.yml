@@ -43,10 +43,14 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: CMake konfigurieren
+        # QT_ROOT_DIR statt steps.qt.outputs.qtPath: die Aktion gibt die
+        # Ausgabe in v4 zwar per setOutput ab, deklariert sie aber nicht in
+        # ihrem action.yml - GitHub stellt sie deshalb nicht unter steps bereit.
+        # Der Pfad kommt zuverlaessig als Umgebungsvariable an.
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_PREFIX_PATH=${{ steps.qt.outputs.qtpath }}
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
 
       - name: Bauen
         run: cmake --build build --config Release
