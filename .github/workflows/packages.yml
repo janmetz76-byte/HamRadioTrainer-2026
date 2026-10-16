@@ -29,9 +29,11 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          # qtsvg ist noetig: alle 687 Bilder der Quelle sind SVG.
-          modules: 'qtbase;qtsvg'
+          # Keine modules: qtbase und qtsvg sind seit Qt 6.8 Basis-Archive und
+          # kommen mit dem Grundpaket. Als Module angegeben, findet aqt sie
+          # nicht und bricht ab. Die Bilder prueft die Testsuite.
           cache: true
+          id: qt
 
       - name: Paketwerkzeuge installieren
         run: |
@@ -46,7 +48,7 @@ jobs:
           # gebauten Programmen. Die Qt-Bibliotheken liegen in einer
           # Aktions-Voreinstellung, die dem Linker-Suchpfad des Systems
           # unbekannt ist; ohne diesen Schritt schlaegt die Analyse fehl.
-          qtlib="${{ steps.qtbin }}/../lib"
+          qtlib="${{ steps.qt.outputs.qtPath }}/lib"
           echo "Qt-Bibliotheken: $qtlib"
           echo "$qtlib" | sudo tee /etc/ld.so.conf.d/qt.conf
           sudo ldconfig
@@ -56,6 +58,7 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=None
+          -DCMAKE_PREFIX_PATH=${{ steps.qt.outputs.qtPath }}
           -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Bauen
@@ -114,11 +117,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          modules: 'qtbase;qtsvg'
+          # Wie im Linux-Schritt: keine modules, qtsvg steckt im Grundpaket.
           cache: true
-          # Wird im Linux-Schritt gebraucht, um die Qt-Bibliotheken fuer
-          # dpkg-shlibdeps auffindbar zu machen.
-          id: qtbin
+          id: qt
 
       - name: NSIS installieren
         run: choco install nsis --no-progress -y
@@ -130,6 +131,7 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ steps.qt.outputs.qtPath }}
           -DCMAKE_INSTALL_PREFIX="C:/Program Files/HamRadioTrainer 2026"
 
       - name: Bauen

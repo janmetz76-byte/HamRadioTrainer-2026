@@ -28,10 +28,14 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          # qtsvg ist zwingend nötig: alle 687 Frage- und Antwortbilder der
-          # Quelle sind SVG. Ohne das Modul bliebe jedes Bild unsichtbar und
-          # der Bildtest würde fehlschlagen.
-          modules: 'qtbase;qtsvg'
+          # Keine modules angeben: seit Qt 6.8 sind qtbase und qtsvg keine
+          # Module, sondern Basis-Archive. aqt install-qt holzt sie mit dem
+          # Grundpaket mit; "aqt list-qt linux desktop --modules 6.8.3" listet
+          # nur die Addons auf und findet qtbase;qtsvg dort nicht - daher
+          # lief der Schritt vorher mit "The packages ... were not found" ab.
+          #
+          # Dass das SVG-Archiv wirklich ankommt, prüft die Testsuite: der
+          # Bildtest scheitert ohne Qt6::Svg, weil HRT_HAVE_SVG dann fehlt.
           cache: true
 
       - name: MSVC-Umgebung einrichten
