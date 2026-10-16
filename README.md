@@ -192,10 +192,11 @@ steht nicht in der Quelldatei (siehe `selection`).
 
 Zwei Eigenheiten der Quelle, die im Format berücksichtigt sind:
 
-* **Antwort A ist immer richtig.** Die BNetzA führt die richtige Antwort
-  ausschließlich in `answer_a`. Der Importer setzt `correct="true"` genau dort.
-  Für die Prüfungssimulation müssen die Antworten vor der Anzeige gemischt
-  werden.
+* **In der Quelle ist die erste Antwort richtig.** Die BNetzA führt die
+  richtige Antwort ausschließlich als `answer_a`. Der Importer verteilt sie
+  deshalb beim Import auf einen der vier Plätze, sonst verriete schon das
+  Katalogfile die Lösung. Für die Prüfungssimulation werden die Antworten
+  zusätzlich gemischt.
 * **77 Fragen haben gar keinen Antworttext**, sondern vier Antwortbilder. Das
   Schema erlaubt deshalb bei `answer` ein Attribut `image` ohne `text`.
 
@@ -247,7 +248,8 @@ N-Prüfungsteil, für Klasse A zusätzlich N und E.
 - `Pruefungsfragen/svgs/`, 687 benötigte Bilder
 - Prüfungsumfang: Amtsblatt-Verfügung 29/2024
 
-Antwort A ist in der Quelle immer richtig. Die Quelldatei nennt keine
+In der Quelle ist die erste Antwort richtig; im Katalog steht sie deshalb an
+wechselnden Plätzen. Die Quelldatei nennt keine
 Fehlerpunkte je Frage; der Wert 1 stammt aus der Verfügung und steht als
 `defaultPoints` in den Katalogmetadaten.
 
@@ -256,6 +258,13 @@ Fehlerpunkte je Frage; der Wert 1 stammt aus der Verfügung und steht als
 ```sh
 hrt-catalog-import --source <Pfad zu Pruefungsfragen> --output data/catalogs
 hrt-catalog-tool --info data/catalogs/*.xml
+```
+
+Bestehende Katalogdateien lassen sich ohne Neuimport umstellen; das Skript
+bildet dieselbe Permutation nach, die der Import anwendet:
+
+```sh
+python3 tools/catalog-reshuffle-answers.py data/catalogs/*.xml
 ```
 
 ### Katalogformat
@@ -293,12 +302,21 @@ Der Quellkatalog führt die richtige Antwort immer an erster Stelle. Diese
 Reihenfolge darf den Lernenden nie erreichen, sonst wäre „immer das erste Feld
 anklicken" eine gewinnende Strategie.
 
-`PaperBuilder` erzeugt deshalb für jede Frage eine eigene Antwortreihenfolge,
-abgeleitet aus einer Startzahl der Prüfung. Gleiche Startzahl und gleiche Frage
-ergeben immer dieselbe Reihenfolge – eine Prüfung lässt sich damit später
-exakt nachvollziehen oder erneut ausdrucken. Eine feste Reihenfolge wie
-`D,B,A` lässt sich vorgeben, etwa für einen gemeldeten Fehler in der
-Originalprüfung.
+Deshalb wird sie schon beim Import verteilt: `spreadAnswers()` in
+`hrt-catalog-import` bildet aus FNV-1a über die Fragekennung eine
+Fisher-Yates-Permutation und schreibt die richtige Antwort an einen der vier
+Plätze – in den ausgelieferten Katalogen etwa zu je einem Viertel. Der
+Vorgang hängt nur von der Kennung ab, nicht von der Prozess-ID: derselbe
+Quellkatalog ergibt stets dieselbe Datei, und `tools/catalog-reshuffle-answers.py`
+rechnet dieselbe Permutation in Python nach, um bestehende Dateien ohne
+Neuimport umzustellen.
+
+`PaperBuilder` mischt zusätzlich für jede Frage eine eigene
+Antwortreihenfolge, abgeleitet aus einer Startzahl der Prüfung. Gleiche
+Startzahl und gleiche Frage ergeben immer dieselbe Reihenfolge – eine Prüfung
+lässt sich damit später exakt nachvollziehen oder erneut ausdrucken. Eine
+feste Reihenfolge wie `D,B,A` lässt sich vorgeben, etwa für einen gemeldeten
+Fehler in der Originalprüfung.
 
 ### Gewichtete Auswahl
 
@@ -331,7 +349,7 @@ notwendig ist.
 
 ## Entwicklungstand
 
-Stand: alle 159 Tests in 14 Programmen sind grün. Die Anwendung ist
+Stand: alle 168 Tests in 14 Programmen sind grün. Die Anwendung ist
 funktionsfähig; offen sind vor allem die Verpackung in weitere Linux-Formate
 und die Veröffentlichung.
 
@@ -351,12 +369,14 @@ Erledigt:
   mit Hinweis auf die mündliche Nachprüfung
 * Oberfläche mit Katalogbrowser, Lernansicht und Prüfungsansicht, SVG-Frage- und
   Antwortbildern
+* Spaltenbreiten und Trenner der Katalogansicht lassen sich mit der Maus ziehen
+  und bleiben über den Programmneustart erhalten
 * Lernansicht: Stand je Prüfungsteil, Leitner-Verteilung, Übungsrunde über die
   offenen Fragen mit Erhebung der Selbsteinschätzung
 * Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
   gebunden an den Prüfsummen-Abdruck der Katalogdatei
 * Formeln der 219 LaTeX-Fragen werden dargestellt
-* Testsuite (159 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Testsuite (168 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
 
 ### Lernfortschritt
 

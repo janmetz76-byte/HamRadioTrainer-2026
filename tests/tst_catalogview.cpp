@@ -7,7 +7,9 @@
 
 #include "core/CatalogXml.h"
 
+#include <QHeaderView>
 #include <QLabel>
+#include <QSettings>
 #include <QTableWidget>
 #include <QTreeWidget>
 #include <QtTest>
@@ -88,6 +90,8 @@ private slots:
     void listUsesTheColumnsOfThe2015Trainer();
     void progressReachesTheList();
     void aQuestionWithAnImageShowsIt();
+    void columnWidthsCanBeDraggedAndSurviveARestart();
+    void partTitlesCarryNoRegulation();
 };
 
 void CatalogViewTest::treeCarriesTheQuestionCount()
@@ -207,6 +211,74 @@ void CatalogViewTest::aQuestionWithAnImageShowsIt()
     QVERIFY2(pixmapLabels >= 4,
              qPrintable(QStringLiteral("nur %1 Bildlabels, erwartet 4 Antwortbilder")
                             .arg(pixmapLabels)));
+}
+
+void CatalogViewTest::columnWidthsCanBeDraggedAndSurviveARestart()
+{
+    // Ausgangslage ohne gemerkte Groessen, damit der Test nicht von der
+    // Reihenfolge der uebrigen Faelle abhaengt.
+    QSettings().remove(QStringLiteral("catalogView"));
+
+    const int draggedWidth = 260;
+    int widthAfterDrag = 0;
+    {
+        CatalogView view;
+        view.setCatalog(&loadCatalog(), catalogPath());
+        QTableWidget *table = view.findChild<QTableWidget *>(QStringLiteral("fragenliste"));
+        QVERIFY(table);
+        QTreeWidget *tree = view.findChild<QTreeWidget *>(QStringLiteral("kapitelbaum"));
+        QVERIFY(tree);
+
+        // Nur eine interaktive Spalte laesst die Maus ueberhaupt an der
+        // Grenze ziehen; Stretch und ResizeToContents blockieren das.
+        for (int column = 0; column < table->columnCount(); ++column) {
+            QCOMPARE(table->horizontalHeaderItem(column) != nullptr, true);
+            QCOMPARE(table->horizontalHeader()->sectionResizeMode(column),
+                     QHeaderView::ResizeMode::Interactive);
+        }
+        QCOMPARE(tree->header()->sectionResizeMode(0), QHeaderView::ResizeMode::Interactive);
+        QCOMPARE(tree->header()->sectionResizeMode(1), QHeaderView::ResizeMode::Interactive);
+        QCOMPARE(tree->header()->stretchLastSection(), false);
+
+        table->setColumnWidth(0, draggedWidth);
+        tree->setColumnWidth(0, 180);
+        widthAfterDrag = table->columnWidth(0);
+
+        // Und die Breite darf nicht beim naechsten Fuellen der Liste wieder
+        // von resizeColumnsToContents() ueberschrieben werden.
+        view.setProgress({});
+        QCOMPARE(table->columnWidth(0), widthAfterDrag);
+    }
+
+    // Ein neues Fenster ist so ungefaehr ein Programmneustart.
+    {
+        CatalogView view;
+        view.setCatalog(&loadCatalog(), catalogPath());
+        QTableWidget *table = view.findChild<QTableWidget *>(QStringLiteral("fragenliste"));
+        QTreeWidget *tree = view.findChild<QTreeWidget *>(QStringLiteral("kapitelbaum"));
+        QVERIFY(table);
+        QCOMPARE(table->columnWidth(0), widthAfterDrag);
+        QCOMPARE(tree->columnWidth(0), 180);
+    }
+}
+
+void CatalogViewTest::partTitlesCarryNoRegulation()
+{
+    // Die Verfuegung steht in der Hilfe, nicht an jeder Zeile der
+    // Katalogansicht - sie frisst dort nur Platz.
+    CatalogView view;
+    view.setCatalog(&loadCatalog(), catalogPath());
+
+    QTreeWidget *tree = view.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    QVERIFY(tree->topLevelItemCount() > 0);
+    for (int row = 0; row < tree->topLevelItemCount(); ++row) {
+        const QTreeWidgetItem *item = tree->topLevelItem(row);
+        QVERIFY2(!item->text(0).contains(QStringLiteral("Amtsblatt")),
+                 qPrintable(item->text(0)));
+        QVERIFY2(!item->text(0).contains(QStringLiteral("29/2024")),
+                 qPrintable(item->text(0)));
+    }
 }
 
 QTEST_MAIN(CatalogViewTest)

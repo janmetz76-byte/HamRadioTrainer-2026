@@ -14,6 +14,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QSettings>
 #include <QLabel>
 #include <QSplitter>
 #include <QTableWidget>
@@ -62,13 +63,16 @@ CatalogView::CatalogView(QWidget *parent)
     : QWidget(parent)
 {
     m_tree = new QTreeWidget(this);
+    m_tree->setObjectName(QStringLiteral("kapitelbaum"));
     m_tree->setColumnCount(2);
     m_tree->setHeaderLabels({tr("Titel"), tr("Fragen")});
-    m_tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    m_tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::Interactive);
+    m_tree->header()->setSectionResizeMode(1, QHeaderView::Interactive);
+    m_tree->header()->setStretchLastSection(false);
     m_tree->setRootIsDecorated(true);
 
     m_questions = new QTableWidget(this);
+    m_questions->setObjectName(QStringLiteral("fragenliste"));
     m_questions->setColumnCount(5);
     // The column names are the ones the 2015 trainer used, so that the view is
     // recognisable for anyone who learned with it.
@@ -78,7 +82,8 @@ CatalogView::CatalogView(QWidget *parent)
     m_questions->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_questions->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_questions->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_questions->horizontalHeader()->setSectionResizeMode(kColumnText, QHeaderView::Stretch);
+    m_questions->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_questions->horizontalHeader()->setStretchLastSection(false);
     m_questions->setWordWrap(false);
 
     m_detail = new QWidget(this);
@@ -98,21 +103,88 @@ CatalogView::CatalogView(QWidget *parent)
     m_right->setStretchFactor(0, 1);
     m_right->setStretchFactor(1, 2);
 
-    auto *splitter = new QSplitter(Qt::Horizontal, this);
-    splitter->addWidget(m_tree);
-    splitter->addWidget(m_right);
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-    splitter->setSizes({320, 900});
+    m_columns = new QSplitter(Qt::Horizontal, this);
+    m_columns->addWidget(m_tree);
+    m_columns->addWidget(m_right);
+    m_columns->setStretchFactor(0, 0);
+    m_columns->setStretchFactor(1, 1);
+    m_columns->setSizes({320, 900});
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(splitter);
+    layout->addWidget(m_columns);
 
     connect(m_tree, &QTreeWidget::itemSelectionChanged, this,
             [this] { fillQuestionList(m_tree->currentItem()); });
     connect(m_questions, &QTableWidget::itemSelectionChanged, this,
             [this] { showSelectedQuestion(); });
+
+    makeColumnsAdjustable();
+    restoreLayout();
+}
+
+CatalogView::~CatalogView()
+{
+    // Ein Absturz, ein Neustart aus dem Terminal oder ein SIGTERM sollen
+    // die eingestellten Spalten nicht wieder verwerfen.
+    saveLayout();
+}
+
+void CatalogView::makeColumnsAdjustable()
+{
+    // Qt laesst eine Spalte nur ziehen, wenn ihre ResizeMode nicht Stretch
+    // oder ResizeToContents ist. Beides stand vorher fest, damit die Ansicht
+    // beim Oeffnen ordentlich aussah - auf Kosten der Hand, die sie
+    // einrichten wollte.
+    //
+    // Die erste Breite einmalig aus dem Inhalt holen; ab da gehoert die
+    // Spalte dem Lernenden.
+    m_questions->resizeColumnsToContents();
+    if (m_questions->columnWidth(kColumnText) < 200)
+        m_questions->setColumnWidth(kColumnText, 200);
+    // Im Baum traegt die erste Spalte die langen Kapitelnamen; ohne
+    // Mindestbreite bliebe neben den Zahlen nur leeres Feld stehen.
+    m_tree->resizeColumnToContents(0);
+    if (m_tree->columnWidth(0) < 220)
+        m_tree->setColumnWidth(0, 220);
+
+    connect(m_tree->header(), &QHeaderView::sectionResized, this, [this] { saveLayout(); });
+    connect(m_questions->horizontalHeader(), &QHeaderView::sectionResized, this,
+            [this] { saveLayout(); });
+    connect(m_columns, &QSplitter::splitterMoved, this, [this](int, int) { saveLayout(); });
+    connect(m_right, &QSplitter::splitterMoved, this, [this](int, int) { saveLayout(); });
+}
+
+void CatalogView::saveLayout()
+{
+    QSettings settings;
+    // Der Zustand des Kopfes enthaelt Breiten, Reihenfolge und die
+    // ResizeModes. Das ueberlebt auch eine Aenderung der Spaltenzahl, weil
+    // Qt unbenannte Abschnitte verwirft.
+    settings.setValue(QStringLiteral("catalogView/kapitelbaum"), m_tree->header()->saveState());
+    settings.setValue(QStringLiteral("catalogView/fragenliste"),
+                      m_questions->horizontalHeader()->saveState());
+    settings.setValue(QStringLiteral("catalogView/spalten"), m_columns->saveState());
+    settings.setValue(QStringLiteral("catalogView/obenUnten"), m_right->saveState());
+}
+
+void CatalogView::restoreLayout()
+{
+    QSettings settings;
+    const QByteArray tree = settings.value(QStringLiteral("catalogView/kapitelbaum")).toByteArray();
+    if (!tree.isEmpty())
+        m_tree->header()->restoreState(tree);
+    const QByteArray questions =
+        settings.value(QStringLiteral("catalogView/fragenliste")).toByteArray();
+    if (!questions.isEmpty())
+        m_questions->horizontalHeader()->restoreState(questions);
+    const QByteArray columns = settings.value(QStringLiteral("catalogView/spalten")).toByteArray();
+    if (!columns.isEmpty())
+        m_columns->restoreState(columns);
+    const QByteArray stacked =
+        settings.value(QStringLiteral("catalogView/obenUnten")).toByteArray();
+    if (!stacked.isEmpty())
+        m_right->restoreState(stacked);
 }
 
 void CatalogView::setCatalog(const Catalog *catalog, const QString &catalogPath)
@@ -248,8 +320,11 @@ void CatalogView::fillQuestionList(QTreeWidgetItem *item)
                                                        ? dateOrDash(state.dueOn)
                                                        : tr("sofort")));
     }
-    m_questions->resizeColumnsToContents();
-    m_questions->horizontalHeader()->setSectionResizeMode(kColumnText, QHeaderView::Stretch);
+    // Kein resizeColumnsToContents() und kein Stretch hier: beides hat die
+    // Frage ueberschrieben, sobald eine andere Zeile eingetragen wurde, und
+    // damit jede von Hand eingestellte Spaltenbreite wieder zerschossen.
+    // Die Breiten kommen aus makeColumnsAdjustable() und ueberleben einen
+    // Katalogwechsel.
 }
 
 void CatalogView::showSelectedQuestion()

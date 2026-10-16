@@ -46,6 +46,8 @@ public:
     /// result or from an external reference.
     bool showQuestion(const QString &questionId);
 
+    ~CatalogView() override;
+
 private:
     void buildTree();
     QVector<const Question *> questionsBelow(const Part &part) const;
@@ -56,6 +58,13 @@ private:
     void showQuestionDetail(const Question &question);
     void clearDetail();
 
+    /// Laesst die Maus an den Spaltengrenzen ziehen und haelt die Groessen
+    /// ueber den Neustart hinweg fest. Ohne das zweite ist die neue
+    /// Bedienung nach dem naechsten Start wieder verschwunden.
+    void makeColumnsAdjustable();
+    void saveLayout();
+    void restoreLayout();
+
     const Catalog *m_catalog = nullptr;
     QString m_catalogPath;
     QHash<QString, QuestionState> m_states;
@@ -64,6 +73,7 @@ private:
     QTreeWidget *m_tree = nullptr;
     QTableWidget *m_questions = nullptr;
     QSplitter *m_right = nullptr;
+    QSplitter *m_columns = nullptr;
     QWidget *m_detail = nullptr;
     QLabel *m_detailHeading = nullptr;
 };

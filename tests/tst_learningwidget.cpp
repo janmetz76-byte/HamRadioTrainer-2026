@@ -12,6 +12,7 @@
 
 #include <QAbstractButton>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QRadioButton>
 #include <QLabel>
 #include <QSpinBox>
@@ -91,6 +92,7 @@ private slots:
     void aRoundWalksThroughThePlannedQuestions();
     void theSelfReportIsWhatMovesTheQuestion();
     void aRoundOnlyOverDueQuestionsStaysSmall();
+    void thePartFilterNamesTheSheetWithoutTheRegulation();
     void theProgressReachesTheDisk();
 };
 
@@ -272,6 +274,27 @@ void LearningWidgetTest::aRoundOnlyOverDueQuestionsStaysSmall()
         QVERIFY2(!plan.contains(questions.at(i)->id), qPrintable(questions.at(i)->id));
     for (int i = 4; i < 8; ++i)
         QVERIFY2(plan.contains(questions.at(i)->id), qPrintable(questions.at(i)->id));
+}
+
+void LearningWidgetTest::thePartFilterNamesTheSheetWithoutTheRegulation()
+{
+    Catalog catalog = loadClassCatalog("de-amateurfunk-A.xml");
+    LearningWidget widget;
+    widget.setCatalog(&catalog, catalogPathFor("de-amateurfunk-A.xml"));
+
+    // Die Auswahl der Pruefungsteile nennt das Blatt und seinen Inhalt. Die
+    // Amtsblatt-Verfuegung steht in der Hilfe - an jeder Zeile der Liste
+    // wiederholt, macht sie die Auswahl nur schwer lesbar.
+    QComboBox *filter = widget.findChild<QComboBox *>();
+    QVERIFY2(filter, "die Auswahl der Pruefungsteile wurde nicht gefunden");
+    QCOMPARE(filter->count(), catalog.parts.size() + 1);
+    for (int i = 0; i < filter->count(); ++i) {
+        const QString entry = filter->itemText(i);
+        QVERIFY2(!entry.contains(QStringLiteral("Amtsblatt")), qPrintable(entry));
+        QVERIFY2(!entry.contains(QStringLiteral("29/2024")), qPrintable(entry));
+    }
+    // Und sie sagt trotzdem, welches Blatt gemeint ist.
+    QVERIFY(filter->itemText(1).contains(QStringLiteral("Vorschriften")));
 }
 
 void LearningWidgetTest::theProgressReachesTheDisk()
