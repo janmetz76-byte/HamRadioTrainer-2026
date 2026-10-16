@@ -28,10 +28,14 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          # qtsvg ist zwingend nötig: alle 687 Frage- und Antwortbilder der
-          # Quelle sind SVG. Ohne das Modul bliebe jedes Bild unsichtbar und
-          # der Bildtest würde fehlschlagen.
-          modules: 'qtbase;qtsvg'
+          # Keine modules angeben: seit Qt 6.8 sind qtbase und qtsvg keine
+          # Module, sondern Basis-Archive. aqt install-qt holzt sie mit dem
+          # Grundpaket mit; "aqt list-qt linux desktop --modules 6.8.3" listet
+          # nur die Addons auf und findet qtbase;qtsvg dort nicht - daher
+          # lief der Schritt vorher mit "The packages ... were not found" ab.
+          #
+          # Dass das SVG-Archiv wirklich ankommt, prüft die Testsuite: der
+          # Bildtest scheitert ohne Qt6::Svg, weil HRT_HAVE_SVG dann fehlt.
           cache: true
 
       - name: MSVC-Umgebung einrichten
@@ -39,10 +43,14 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: CMake konfigurieren
+        # QT_ROOT_DIR statt steps.qt.outputs.qtPath: die Aktion gibt die
+        # Ausgabe in v4 zwar per setOutput ab, deklariert sie aber nicht in
+        # ihrem action.yml - GitHub stellt sie deshalb nicht unter steps bereit.
+        # Der Pfad kommt zuverlaessig als Umgebungsvariable an.
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_PREFIX_PATH=${{ steps.qt.outputs.qtpath }}
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
 
       - name: Bauen
         run: cmake --build build --config Release
@@ -71,12 +79,18 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
+          # xmllint gehoert nicht mehr zum Vorinstallierten des Runners.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxml2-utils
           for f in data/catalogs/*.xml; do
             xmllint --noout --schema schema/catalog.xsd "$f"
           done
 
       - name: Installieren
-        run: cmake --install build --prefix dist --config Release
+        # Der Praefix muss absolut sein. Mit einem relativen "dist" schreibt
+        # die Qt-Deploy-Unterstuetzung einen relativen Pfad in die qt.conf und
+        # bricht ab: "Given qt.conf path is not an absolute path".
+        run: cmake --install build --prefix "${{ github.workspace }}/dist" --config Release
 
       - uses: actions/upload-artifact@v4
         with:

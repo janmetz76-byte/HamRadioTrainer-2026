@@ -65,6 +65,9 @@ private:
     void saveLayout();
     void restoreLayout();
 
+    /// Solange gesetzt, wird nichts gemerkt - siehe saveLayout().
+    bool m_loadingLayout = false;
+
     const Catalog *m_catalog = nullptr;
     QString m_catalogPath;
     QHash<QString, QuestionState> m_states;

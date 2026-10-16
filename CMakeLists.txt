@@ -36,6 +36,7 @@ add_library(hrt_core STATIC
     src/core/CatalogXml.cpp
     src/core/CatalogValidator.cpp
     src/core/LatexFormatter.cpp
+    src/core/AppIdentity.cpp
     src/core/CatalogLocator.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
@@ -275,13 +276,24 @@ else()
     set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
     set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+    # SHLIBDEPS allein reicht nicht: es kann aus einer aqt-Installation kein
+    # dpkg-Paket ableiten, weil dort kein Debian-Paket installiert wurde. Ein
+    # deb ohne Qt-Abhaengigkeit laesst sich auf einem echten System nicht
+    # installieren, also wird sie hier von Hand genannt - mit den Namen, die
+    # Ubuntu 24.04 fuehrt (dort heissen sie wegen der t64-Umbenennung
+    # ...6t64). Auf aelteren Debian-Systemen stimmen die Namen dann nicht;
+    # CPack laesst pro Generator nur eine Liste zu, keine Alternativen.
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "libqt6core6t64, libqt6gui6t64, libqt6widgets6t64, libqt6xml6t64, libqt6svg6t64")
 
     set(CPACK_RPM_PACKAGE_NAME "hamradiotrainer-2026")
     set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
     set(CPACK_RPM_PACKAGE_GROUP "Applications/Education")
-    # The dependencies are derived from the libraries the program actually
-    # links against, so they follow the Qt version it was built with.
-    set(CPACK_RPM_PACKAGE_AUTOREQPROV ON)
+    # AUTOREQPROV liest die Abhaengigkeiten aus den gebauten Programmen und
+    # liefert bei einer aqt-Installation nur die Systembibliotheken - Qt
+    # fehlt. Deshalb nennt das rpm seine Qt-Pakete selbst; AUTOREQPROV ist
+    # damit aus.
+    set(CPACK_RPM_PACKAGE_REQUIRES "qt6-qtbase, qt6-qtsvg")
     set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 endif()
 

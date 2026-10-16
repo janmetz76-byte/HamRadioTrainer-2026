@@ -119,8 +119,10 @@ CatalogView::CatalogView(QWidget *parent)
     connect(m_questions, &QTableWidget::itemSelectionChanged, this,
             [this] { showSelectedQuestion(); });
 
+    m_loadingLayout = true;
     makeColumnsAdjustable();
     restoreLayout();
+    m_loadingLayout = false;
 }
 
 CatalogView::~CatalogView()
@@ -157,6 +159,13 @@ void CatalogView::makeColumnsAdjustable()
 
 void CatalogView::saveLayout()
 {
+    // Solange die Ansicht aufgebaut wird, schreibt sie ihren eigenen
+    // Aufbau zurueck und ueberschreibt damit das gerade eingelesene Layout.
+    // Ohne diese Bremse war die erste Ansicht nach dem Neustart wieder so
+    // breit wie ihr Inhalt.
+    if (m_loadingLayout)
+        return;
+
     QSettings settings;
     // Der Zustand des Kopfes enthaelt Breiten, Reihenfolge und die
     // ResizeModes. Das ueberlebt auch eine Aenderung der Spaltenzahl, weil

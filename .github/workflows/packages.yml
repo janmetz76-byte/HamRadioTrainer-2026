@@ -29,9 +29,11 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          # qtsvg ist noetig: alle 687 Bilder der Quelle sind SVG.
-          modules: 'qtbase;qtsvg'
+          # Keine modules: qtbase und qtsvg sind seit Qt 6.8 Basis-Archive und
+          # kommen mit dem Grundpaket. Als Module angegeben, findet aqt sie
+          # nicht und bricht ab. Die Bilder prueft die Testsuite.
           cache: true
+        id: qt
 
       - name: Paketwerkzeuge installieren
         run: |
@@ -46,7 +48,7 @@ jobs:
           # gebauten Programmen. Die Qt-Bibliotheken liegen in einer
           # Aktions-Voreinstellung, die dem Linker-Suchpfad des Systems
           # unbekannt ist; ohne diesen Schritt schlaegt die Analyse fehl.
-          qtlib="${{ steps.qtbin }}/../lib"
+          qtlib="${{ env.QT_ROOT_DIR }}/lib"
           echo "Qt-Bibliotheken: $qtlib"
           echo "$qtlib" | sudo tee /etc/ld.so.conf.d/qt.conf
           sudo ldconfig
@@ -56,6 +58,7 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=None
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
           -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Bauen
@@ -81,13 +84,33 @@ jobs:
             else
               inhalt=$(rpm -qlp "$paket")
               felder=$(rpm -qip "$paket" | grep -E "^(Name|Version|License)")
+              # "rpm -qip" zeigt niemals Abhaengigkeiten an, auch nicht mit
+              # grep darauf. Die holt man sich gesondert, sonst prueft die
+              # Zeile unten gegen eine leere Liste und meldet immer Qt als
+              # fehlend.
+              abhaengig=$(rpm -qp --requires "$paket")
             fi
             echo "$felder"
             # Die drei Kataloge muessen dabei sein.
+            # Kein "echo | grep -q": grep -q bricht nach dem ersten Treffer ab,
+            # echo bekommt eine kaputte Pipe und das Ganze faellt unter
+            # "set -o pipefail" als Fehler durch - auch wenn der Katalog
+            # drinsteht. Der Herestring liest die Liste nur.
             for klasse in N E A; do
-              echo "$inhalt" | grep -q "de-amateurfunk-$klasse.xml" \
+              grep -q "de-amateurfunk-$klasse.xml" <<< "$inhalt" \
                 || { echo "FEHLT: Katalog $klasse"; exit 1; }
             done
+            # Und die Laufzeitabhaengigkeiten muessen Qt nennen. Aus einer
+            # aqt-Installation laesst sich kein dpkg-Paket ableiten, darum
+            # steht Qt hier nicht von allein drin (siehe CPACK_DEBIAN_PACKAGE_DEPENDS).
+            if [[ $paket == *.deb ]]; then
+              grep -qi "qt6" <<< "$felder" \
+                || { echo "FEHLER: das deb nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
+            else
+              echo "rpm verlangt: $abhaengig"
+              grep -qi "qt6" <<< "$abhaengig" \
+                || { echo "FEHLER: das rpm nennt keine Qt-Laufzeitabhaengigkeit"; exit 1; }
+            fi
             # Und die Bilder, sonst waere jede Bildfrage unbrauchbar.
             bilder=$(echo "$inhalt" | grep -c '\.svg$')
             echo "Bilder im Paket: $bilder"
@@ -114,11 +137,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
-          modules: 'qtbase;qtsvg'
+          # Wie im Linux-Schritt: keine modules, qtsvg steckt im Grundpaket.
           cache: true
-          # Wird im Linux-Schritt gebraucht, um die Qt-Bibliotheken fuer
-          # dpkg-shlibdeps auffindbar zu machen.
-          id: qtbin
+        id: qt
 
       - name: NSIS installieren
         run: choco install nsis --no-progress -y
@@ -130,6 +151,7 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
           -DCMAKE_INSTALL_PREFIX="C:/Program Files/HamRadioTrainer 2026"
 
       - name: Bauen
