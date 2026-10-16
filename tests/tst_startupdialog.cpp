@@ -10,6 +10,7 @@
 #include "ExamWidget.h"
 
 #include <QCheckBox>
+#include <QLabel>
 #include <QComboBox>
 #include <QtTest>
 
@@ -42,6 +43,7 @@ private slots:
     void classIsPreselected();
     void acceptingStoresTheChoice();
     void noSelectionMeansNoAccept();
+    void theHintCountsItsNumbers();
 };
 
 void StartupDialogTest::partsFollowTheAmtsblatt()
@@ -93,6 +95,30 @@ void StartupDialogTest::labelsSpellThePartsOut()
     }
     // Der Aufstieg von E nach A besteht allein aus der Technik Klasse A.
     QCOMPARE(all.at(5).parts.size(), 1);
+
+    // Der Aufstieg von N nach A prueft zwei Teile, zeigt aber wie E nach A
+    // nur die Technik Klasse A. Der Unterschied steht im Hinweis, damit
+    // niemand eine fehlende Pruefungsteil A vermutet.
+    QCOMPARE(all.at(4).parts, QVector<int>({3, 4}));
+    QCOMPARE(all.at(4).shownParts, QVector<int>({4}));
+    QVERIFY2(all.at(4).note.contains(QStringLiteral("Technik Klasse E")),
+             qPrintable(all.at(4).note));
+
+    // Und diese Zeile steht auch wirklich so im Fenster. Sie braucht den
+    // Katalog der Klasse A, weil der N-Katalog keinen Teil A enthaelt.
+    StartupDialog dialog(allCatalogs());
+    auto *catalogs = dialog.findChild<QComboBox *>();
+    QVERIFY(catalogs);
+    catalogs->setCurrentIndex(2);
+    QString row;
+    for (const QCheckBox *box : dialog.findChildren<QCheckBox *>()) {
+        if (box->text().startsWith(QStringLiteral("Klasse N → A")))
+            row = box->text();
+    }
+    QVERIFY2(!row.isEmpty(), "die Zeile 'Klasse N → A' fehlt im Assistenten");
+    QVERIFY2(row.contains(QStringLiteral("Technik Klasse A"))
+                 && !row.contains(QStringLiteral("Technik Klasse E")),
+             qPrintable(row));
 }
 
 void StartupDialogTest::catalogNOffersNoAscent()
@@ -162,6 +188,29 @@ void StartupDialogTest::noSelectionMeansNoAccept()
     dialog.accept();
     // Ohne gewaehlte Pruefung gibt es nichts zu starten.
     QVERIFY(!dialog.result().accepted);
+}
+
+void StartupDialogTest::theHintCountsItsNumbers()
+{
+    StartupDialog dialog(allCatalogs());
+
+    // Der Hinweis nennt, wie viele der sechs moeglichen Pruefungen der
+    // Katalog hergibt. Ein frueherer Aufruf von tr() ohne arg() liess die
+    // Platzhalter "%1" und "%2" im Text stehen, die niemand versteht.
+    const QLabel *hint = nullptr;
+    for (const QLabel *label : dialog.findChildren<QLabel *>()) {
+        if (label->text().contains(QStringLiteral("passen zu diesem Katalog"))
+            || label->text().contains(QStringLiteral("Ohne Katalog"))) {
+            hint = label;
+            break;
+        }
+    }
+    QVERIFY2(hint, "der Assistent hat keinen Hinweis zu den Pruefungen");
+    const QString text = hint->text();
+    QVERIFY2(!text.contains(QStringLiteral("%1")) && !text.contains(QStringLiteral("%2")),
+             qPrintable(QStringLiteral("unersetzter Platzhalter im Hinweis: %1").arg(text)));
+    QVERIFY2(!text.contains(QStringLiteral("Fällen")), qPrintable(text));
+    QVERIFY(text.contains(QString::number(StartupDialog::combinations().size())));
 }
 
 QTEST_MAIN(StartupDialogTest)

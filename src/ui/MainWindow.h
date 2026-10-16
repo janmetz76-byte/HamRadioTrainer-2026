@@ -45,6 +45,16 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+    /// Die drei Ansichten der Ansichtsleiste, in ihrer Reihenfolge.
+    enum View {
+        CatalogViewIndex = 0,
+        LearningViewIndex = 1,
+        ExamViewIndex = 2,
+    };
+    static constexpr int kCatalogView = CatalogViewIndex;
+    static constexpr int kLearningView = LearningViewIndex;
+    static constexpr int kExamView = ExamViewIndex;
+
     bool openCatalog(const QString &path);
 
     /// Opens the catalog the learner used last, or the first one that was
@@ -57,6 +67,8 @@ public:
 private:
     void loadProgress();
     void saveProgress();
+    /// Herkunft und Lizenz des geladenen Katalogs fuer den Hilfetext.
+    QString catalogProvenance() const;
     void showResult(const ExamResult &result);
     void rememberCatalog(const QString &path);
     void buildUi();

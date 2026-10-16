@@ -87,11 +87,13 @@ QVector<StartupDialog::Combination> StartupDialog::combinations()
         {tr("Klasse A — vollständige Prüfung"),
          tr("Alle Teile von vorn."), QStringLiteral("A"), {0, 1, 2, 3, 4}},
         {tr("Klasse N → E"), tr("Vorschriften, Betriebstechnik und Technik Klasse N wurden schon geprüft."),
-         QStringLiteral("E"), {3}},
-        {tr("Klasse N → A"), tr("Vorschriften, Betriebstechnik und Technik Klasse N wurden schon geprüft."),
-         QStringLiteral("A"), {3, 4}},
+         QStringLiteral("E"), {3}, {}},
+        {tr("Klasse N → A"),
+         tr("Vorschriften, Betriebstechnik und Technik Klasse N wurden schon geprüft. "
+            "Zusätzlich zur Technik Klasse A wird die Technik Klasse E geprüft."),
+         QStringLiteral("A"), {3, 4}, {4}},
         {tr("Klasse E → A"), tr("Vorschriften, Betriebstechnik sowie die Technik N und E wurden schon geprüft."),
-         QStringLiteral("A"), {4}},
+         QStringLiteral("A"), {4}, {4}},
     };
 }
 
@@ -209,8 +211,12 @@ void StartupDialog::rebuildPartChoices()
     m_shown = loaded ? combinationsFor(catalog) : QVector<Combination>();
 
     for (const Combination &combination : m_shown) {
+        // Angezeigt wird, was auf dem Zertifikat steht - bei einem Aufstieg
+        // also nur die letzte Stufe, auch wenn mehr geprueft wird.
+        const QVector<int> &shown = combination.shownParts.isEmpty() ? combination.parts
+                                                                     : combination.shownParts;
         auto *box = new QCheckBox(
-            QStringLiteral("%1  —  %2").arg(combination.label, partList(combination.parts)),
+            QStringLiteral("%1  —  %2").arg(combination.label, partList(shown)),
             m_partsBox);
         if (!combination.note.isEmpty())
             box->setToolTip(combination.note);
@@ -235,8 +241,10 @@ void StartupDialog::rebuildPartChoices()
     if (!any && !m_partBoxes.isEmpty())
         m_partBoxes.first()->setChecked(true);
 
-    m_hint->setText(loaded ? tr("%1 von %2 Fällen passen zu diesem Katalog. "
+    m_hint->setText(loaded ? tr("%1 von %2 Prüfungen passen zu diesem Katalog. "
                                 "Nach bestandener Klasse entfallen die schon geprüften Teile.")
+                                 .arg(m_shown.size())
+                                 .arg(combinations().size())
                            : tr("Ohne Katalog lässt sich keine Prüfung wählen."));
 }
 

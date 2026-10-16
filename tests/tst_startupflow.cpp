@@ -8,7 +8,11 @@
 
 #include "core/CatalogLocator.h"
 
+#include <QLabel>
 #include <QSettings>
+#include <QStackedWidget>
+#include <QStatusBar>
+#include <QTreeWidget>
 #include <QStandardPaths>
 #include <QTest>
 #include <QTimer>
@@ -95,6 +99,10 @@ private slots:
     void assistantAppearsEvenWithARememberedCatalog();
     void assistantDoesNotAppearTwice();
     void cancellingLeavesTheProgramUsable();
+    void assistantCanBeOpenedTwice();
+    void assistantLeadsIntoTheLearningView();
+    void theChosenDateIsShownRightAway();
+    void switchingCatalogAfterBrowsingKeepsTheList();
 
 private:
     /// Runs openInitialCatalog() with the assistant answered automatically.
@@ -182,6 +190,99 @@ void StartupFlowTest::cancellingLeavesTheProgramUsable()
 
     // Der Katalog ist geladen und die Ansichten sind bedienbar.
     QVERIFY(window.isVisible() || window.isEnabled());
+}
+
+void StartupFlowTest::assistantLeadsIntoTheLearningView()
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+
+    AssistantCloser closer;
+    MainWindow window;
+    window.openInitialCatalog();
+    closer.stop();
+
+    // Der Assistent fragt "Wofuer moechten Sie lernen?". Wer danach in der
+    // Katalogansicht landet, muss sich erst noch durchklicken, bis er
+    // anfangen kann.
+    auto *stack = window.findChild<QStackedWidget *>();
+    QVERIFY(stack);
+    QCOMPARE(stack->currentIndex(), int(MainWindow::kLearningView));
+}
+
+void StartupFlowTest::theChosenDateIsShownRightAway()
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+
+    // Der Assistent nimmt den Termin, den das Datumsfeld vorschlaegt. Ohne
+    // dass er ins laufende Programm uebernommen wird, blieb der Countdown die
+    // ganze Sitzung ueber leer und erschien erst beim naechsten Start.
+    AssistantCloser closer;
+    MainWindow window;
+    window.openInitialCatalog();
+    closer.stop();
+
+    const QDate chosen = settings.value(QStringLiteral("startup/examDate")).toDate();
+    QVERIFY(chosen.isValid());
+
+    QString countdown;
+    for (const QLabel *label : window.statusBar()->findChildren<QLabel *>())
+        countdown += label->text();
+    QVERIFY2(!countdown.isEmpty(), "die Statusleiste nennt keinen Pruefungstermin");
+    QVERIFY2(countdown.contains(QStringLiteral("Kein Prüfungstermin")) == false,
+             qPrintable(QStringLiteral("der gewaehlte Termin wird nicht angezeigt: %1")
+                            .arg(countdown)));
+}
+
+void StartupFlowTest::switchingCatalogAfterBrowsingKeepsTheList()
+{
+    // Regression: m_tree->clear() loest itemSelectionChanged aus. Zeigte
+    // m_catalog schon auf den neuen Katalog, fuellte die Katalogansicht die
+    // Fragenliste noch aus dem freigegebenen alten Katalog - der Absturz
+    // mit "corrupted double-linked list" war die Folge.
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"),
+                      QStringLiteral(HRT_SOURCE_DIR "/data/catalogs/de-amateurfunk-A.xml"));
+
+    AssistantCloser closer;
+    MainWindow window;
+    window.openInitialCatalog();
+    closer.stop();
+
+    auto *tree = window.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    for (int row = 0; row < tree->topLevelItemCount(); ++row) {
+        tree->setCurrentItem(tree->topLevelItem(row));
+        QCoreApplication::processEvents();
+    }
+
+    QVERIFY(window.openCatalog(QStringLiteral(HRT_SOURCE_DIR
+                                             "/data/catalogs/de-amateurfunk-N.xml")));
+    QCoreApplication::processEvents();
+    QCOMPARE(tree->topLevelItemCount(), 3);
+    QVERIFY(window.isEnabled());
+}
+
+void StartupFlowTest::assistantCanBeOpenedTwice()
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+
+    AssistantCloser first;
+    MainWindow window;
+    window.openInitialCatalog();
+    first.stop();
+
+    QVERIFY2(first.wasShown(), "der erste Assistent erschien nicht");
+
+    settings.setValue(QStringLiteral("startup/done"), false);
+    AssistantCloser second;
+    window.runStartupAssistant();
+    second.stop();
+
+    QVERIFY2(second.wasShown(), "der zweite Assistent erschien nicht");
+    QVERIFY(window.isEnabled());
 }
 
 QTEST_MAIN(StartupFlowTest)

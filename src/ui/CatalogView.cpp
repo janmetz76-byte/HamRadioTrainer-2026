@@ -138,8 +138,16 @@ void CatalogView::setProgress(const QVector<QuestionState> &states)
 
 void CatalogView::buildTree()
 {
-    m_tree->clear();
+    // m_tree->clear() loest itemSelectionChanged aus, und das faellt ueber
+    // den Signalweg in fillQuestionList() zurueck. Zu diesem Zeitpunkt sind
+    // die alten Baumzeilen schon geloescht und m_sets zeigt noch auf sie -
+    // der Weg dorthin laeuft also ueber freigegebenen Speicher. Erst die
+    // Zuordnung loesen, dann den Baum leeren, und waehrenddessen die Signale
+    // sperren, damit gar nichts zurueckkommt.
     m_sets.clear();
+    m_tree->blockSignals(true);
+    m_tree->clear();
+    m_tree->blockSignals(false);
     m_questions->setRowCount(0);
     clearDetail();
     if (!m_catalog)

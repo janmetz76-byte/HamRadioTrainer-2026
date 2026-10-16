@@ -17,6 +17,7 @@
 #include "ExamWidget.h"
 #include "LearningWidget.h"
 
+#include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAction>
 #include <QButtonGroup>
@@ -146,13 +147,20 @@ void MainWindow::buildUi()
     QMenu *helpMenu = menuBar()->addMenu(tr("&Hilfe"));
     auto *aboutAction = new QAction(tr("&Über HamRadioTrainer 2026"), this);
     connect(aboutAction, &QAction::triggered, this, [this] {
-        QMessageBox::about(
-            this, tr("Über HamRadioTrainer 2026"),
-            tr("<h3>HamRadioTrainer 2026</h3>"
-               "<p>Neu aufgebaut von Jan DC6DX.</p>"
-               "<p>Lizenz: GNU General Public License v3 oder später.</p>"
-               "<p>Fragenkataloge liegen als unverschlüsseltes XML vor und können "
-               "direkt bearbeitet werden.</p>"));
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Information);
+        box.setWindowTitle(tr("Über HamRadioTrainer 2026"));
+        box.setText(tr("<h3>HamRadioTrainer 2026</h3>"
+                       "<p>Neu aufgebaut von Jan DC6DX.</p>"
+                       "<p>Lizenz: GNU General Public License v3 oder später.</p>"
+                       "<p>Fragenkataloge liegen als unverschlüsseltes XML vor und können "
+                       "direkt bearbeitet werden.</p>"));
+        // Die Herkunft der Fragen gehoert in die Hilfe und nicht an jede
+        // Zeile der Oberflaeche: in der Auswahl der Pruefungsteile steht sie
+        // nur im Weg.
+        box.setInformativeText(catalogProvenance());
+        box.setStandardButtons(QMessageBox::Ok);
+        box.exec();
     });
     helpMenu->addAction(aboutAction);
 
@@ -226,6 +234,36 @@ void MainWindow::buildUi()
     auto *reportAction = m_reportDock->toggleViewAction();
     reportAction->setText(tr("Prüf&bericht"));
     menuBar()->addAction(reportAction);
+}
+
+/// Woher die Fragen des geladenen Katalogs stammen.
+///
+/// Aus den Metadaten der Datei, nicht fest im Programm: ein selbst
+/// gebauter oder von Hand ergaenzter Katalog nennt seine eigene Herkunft,
+/// und die Anzeige bleibt trotzdem wahr. Ohne Katalog bleibt nur der
+/// allgemeine Satz, damit die Hilfe nie leer ist.
+QString MainWindow::catalogProvenance() const
+{
+    QString text = tr("Der amtliche Prüfungfragenkatalog der Bundesnetzagentur für "
+                      "Elektrizität, Gas, Telekommunikation, Post und Eisenbahnen "
+                      "liefert die Fragen. Der Prüfungsumfang - 25 Fragen je "
+                      "Prüfungsteil, bestanden ab 19 richtigen Antworten, 60 Minuten "
+                      "für Teil A und 45 Minuten für die übrigen Teile - folgt der "
+                      "Amtsblatt-Verfügung 29/2024 vom 24.06.2024.");
+    if (m_catalogPath.isEmpty())
+        return text;
+
+    QStringList lines;
+    const CatalogMetadata &metadata = m_catalog.metadata;
+    if (!metadata.authority.isEmpty())
+        lines.append(tr("Herausgeber: %1").arg(metadata.authority));
+    if (!metadata.attribution.isEmpty())
+        lines.append(metadata.attribution);
+    if (!metadata.license.isEmpty())
+        lines.append(tr("Datenlizenz: %1").arg(metadata.license));
+    if (!lines.isEmpty())
+        text += QStringLiteral("\n\n") + lines.join(QStringLiteral("\n"));
+    return text;
 }
 
 /// Reads the learning progress that belongs to this catalog. A progress file
@@ -375,7 +413,17 @@ void MainWindow::runStartupAssistant()
     if (!chosen.catalogPath.isEmpty() && chosen.catalogPath != m_catalogPath)
         openCatalog(chosen.catalogPath);
     m_exam->setSelectedParts(chosen.selectedParts);
+    // Der Assistent hat den Termin nur in die Einstellungen geschrieben. Ohne
+    // dieses Zuspieln blieb die Countdown-Anzeige die ganze Sitzung ueber leer,
+    // obwohl der Termin eingetragen war.
+    m_examDate = chosen.examDate;
     updateExamCountdown();
+
+    // Der Assistent fragt "Wofuer moechten Sie lernen?" - die Antwort ist
+    // eine Lernaufgabe, kein Katalogverzeichnis. Wer danach in der
+    // Katalogansicht landet, muss sich noch einmal durchklicken, bis er
+    // anfangen kann.
+    selectView(kLearningView);
 }
 
 void MainWindow::updateExamCountdown()
@@ -478,8 +526,15 @@ bool MainWindow::openCatalog(const QString &path)
 
 void MainWindow::selectView(int index)
 {
-    if (index >= 0 && index < m_views.size())
-        m_viewStack->setCurrentIndex(index);
+    if (index < 0 || index >= m_views.size())
+        return;
+    m_viewStack->setCurrentIndex(index);
+    // Die Ansichtsleiste ist die Bedienung, der Stapel nur ihre Anzeige.
+    // Wer nur den Stapel setzt, laesst die Leiste auf der alten Ansicht
+    // stehen - dann beantwortet der naechste Klick etwas anderes als
+    // angezeigt.
+    if (QAbstractButton *button = m_viewGroup->button(index))
+        button->setChecked(true);
 }
 
 

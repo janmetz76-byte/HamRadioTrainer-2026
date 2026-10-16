@@ -58,6 +58,12 @@ public:
         QString note;       ///< why the learner does not need the other parts
         QString targetClass;///< class the certificate is applied for
         QVector<int> parts; ///< indexes into the catalog's part list
+        /// Was in der Zeile angezeigt wird. Leer heisst: alles aus parts.
+        ///
+        /// Der Aufstieg von N nach A prueft laut Verfuegung E und A. In der
+        /// Zeile steht nur die Technik Klasse A, weil das die einzige ist,
+        /// die auf dem Zertifikat steht; der Hinweis nennt E mit.
+        QVector<int> shownParts;
     };
 
     /// The parts needed for a full examination of the given class, without
