@@ -33,7 +33,7 @@ jobs:
           # kommen mit dem Grundpaket. Als Module angegeben, findet aqt sie
           # nicht und bricht ab. Die Bilder prueft die Testsuite.
           cache: true
-          id: qt
+        id: qt
 
       - name: Paketwerkzeuge installieren
         run: |
@@ -119,7 +119,7 @@ jobs:
           version: '6.8.3'
           # Wie im Linux-Schritt: keine modules, qtsvg steckt im Grundpaket.
           cache: true
-          id: qt
+        id: qt
 
       - name: NSIS installieren
         run: choco install nsis --no-progress -y
