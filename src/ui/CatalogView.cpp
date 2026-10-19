@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "CatalogView.h"
+
+#include "AppIcons.h"
 
 #include "ImageLoader.h"
 #include "QuestionText.h"
@@ -23,6 +25,13 @@
 
 namespace hrt {
 namespace {
+
+/// Ab welcher Stufe eine Frage als gefestigt gilt.
+///
+/// Dieselbe Zahl wie in LearningStatistics - zwei Schwellen im Programm
+/// waeren zwei Antworten auf die Frage "ab wann gilt etwas als gelernt",
+/// und die Antworten liefen auseinander, sobald eine davon sich aenderte.
+constexpr int kGefestigtAb = Scheduler::MaxBox - 1;
 
 constexpr int kColumnId = 0;
 constexpr int kColumnText = 1;
@@ -212,9 +221,66 @@ void CatalogView::setProgress(const QVector<QuestionState> &states)
     for (const QuestionState &state : states)
         m_states.insert(state.questionId, state);
 
+    // Die Symbole des Baumes tragen denselben Fortschritt, sie muessen also
+    // bei jeder Antwort neu gesetzt werden - sonst zeigte der Baum weiter,
+    // was beim letzten Klick galt.
+    for (int top = 0; top < m_tree->topLevelItemCount(); ++top)
+        paintStatusBelow(m_tree->topLevelItem(top));
+
     // The list carries the progress, so it has to be rebuilt.
     if (m_tree->currentItem())
         fillQuestionList(m_tree->currentItem());
+}
+
+void CatalogView::paintStatusBelow(QTreeWidgetItem *item)
+{
+    if (!item)
+        return;
+    // QHash::value gibt die Liste selbst zurueck, nicht einen Zeiger darauf -
+    // ein Zeiger daraus waere ein Zeiger auf eine Kopie, die mit der Schleife
+    // endet.
+    const auto sitz = m_sets.constFind(item);
+    if (sitz != m_sets.constEnd()) {
+        const QVector<const Question *> &fragen = sitz.value();
+        int beantwortet = 0;
+        int gefestigt = 0;
+        for (const Question *frage : fragen) {
+            const auto sitz = m_states.constFind(frage->id);
+            if (sitz == m_states.constEnd())
+                continue;
+            if (sitz->timesAnswered == 0)
+                continue;
+            ++beantwortet;
+            if (sitz->box >= kGefestigtAb)
+                ++gefestigt;
+        }
+
+        // Ohne eine einzige beantwortete Frage bleibt das Symbol farblos. Eine
+        // rote Marke an einem Kapitel, das noch niemand gesehen hat, waere
+        // eine Warnung fuer etwas, das nicht schiefgegangen ist.
+        QString name = QStringLiteral("status-new");
+        QString text;
+        if (fragen.isEmpty()) {
+            name.clear();
+        } else if (beantwortet == 0) {
+            name = QStringLiteral("status-new");
+            text = tr("noch keine Frage bearbeitet");
+        } else {
+            const int anteil = gefestigt * 100 / fragen.size();
+            name = anteil >= 60 ? QStringLiteral("status-high")
+                                : (anteil >= 25 ? QStringLiteral("status-mid")
+                                                : QStringLiteral("status-low"));
+            text = tr("%1 gefestigt, %2 bearbeitet (von %3)")
+                       .arg(gefestigt)
+                       .arg(beantwortet)
+                       .arg(fragen.size());
+        }
+        item->setIcon(0, name.isEmpty() ? QIcon() : AppIcons::get(name));
+        item->setToolTip(0, name.isEmpty() ? QString() : text);
+    }
+
+    for (int i = 0; i < item->childCount(); ++i)
+        paintStatusBelow(item->child(i));
 }
 
 void CatalogView::buildTree()
@@ -259,6 +325,9 @@ void CatalogView::buildTree()
                 m_sets.insert(chapterItem, chapterQuestions);
             }
         }
+        // Erst nach den Kindern: paintStatusBelow() laeuft in die Kinder
+        // hinein, und vor diesem Punkt gibt es keine.
+        paintStatusBelow(partItem);
         partItem->setExpanded(true);
     }
 

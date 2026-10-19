@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -44,10 +44,20 @@ public:
     /// "3 Fehler, 12 Hinweise", for menus and status bars.
     QString summary() const;
 
-private:
-    void applyFilter();
+    /// Sets the one line that says what this panel is for. A report nobody
+    /// understands is not read; the name alone does not explain whether the
+    /// findings come from us or from the question catalogue.
+    void setHeadline(const QString &text);
+
+public slots:
+    /// Copies the whole report to the clipboard. Exposed as a slot so that
+    /// the menu can offer the same thing as the button inside the panel.
     void copyToClipboard();
 
+private:
+    void applyFilter();
+
+    QLabel *m_headline = nullptr;
     QLabel *m_summary = nullptr;
     QComboBox *m_filter = nullptr;
     QTreeWidget *m_list = nullptr;

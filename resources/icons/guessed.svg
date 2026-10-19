@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>guessed</title>
+  <g fill="none" stroke="#2f3437" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect  x="4.2" y="4.2" width="15.6" height="15.6" rx="3.6"/>
+        <circle fill="#2f3437" stroke="none" cx="9" cy="9" r="1.25"/>
+        <circle fill="#2f3437" stroke="none" cx="15" cy="15" r="1.25"/>
+        <circle fill="#2f3437" stroke="none" cx="12" cy="12" r="1.25"/>
+    
+  </g>
+</svg>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -54,6 +54,8 @@ private:
     QVector<const Question *> questionsBelow(const Section &section) const;
     int partAvailable(const Part &part) const;
     void fillQuestionList(QTreeWidgetItem *item);
+    /// Setzt das Statussymbol eines Baumknotens und aller seiner Kinder neu.
+    void paintStatusBelow(QTreeWidgetItem *item);
     void showSelectedQuestion();
     void showQuestionDetail(const Question &question);
     void clearDetail();

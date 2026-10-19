@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# HamRadioTrainer 2026 - Neu aufgebaut von Jan DC6DX
+# HamRadioTrainer 2026 - Neu aufgebaut von Jan - DC6DX
 #
 # Baut die Installationspakete. Jedes Paket wird nach dem Bau geprüft: es muss
 # die drei Kataloge und alle 687 Bilder enthalten, sonst findet das

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "ValidationReport.h"
+
+#include "AppIcons.h"
 
 #include <QClipboard>
 #include <QComboBox>
@@ -28,6 +30,12 @@ ValidationReport::ValidationReport(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 4, 4, 4);
 
+    m_headline = new QLabel(this);
+    m_headline->setWordWrap(true);
+    m_headline->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_headline->setStyleSheet(QStringLiteral("font-weight: bold; color: palette(text);"));
+    layout->addWidget(m_headline);
+
     m_summary = new QLabel(this);
     m_summary->setWordWrap(true);
     layout->addWidget(m_summary);
@@ -43,6 +51,7 @@ ValidationReport::ValidationReport(QWidget *parent)
 
     m_copy = new QToolButton(this);
     m_copy->setText(tr("Alles kopieren"));
+    m_copy->setIcon(AppIcons::get(QStringLiteral("copy")));
     m_copy->setToolTip(tr("Den vollständigen Prüfbericht in die Zwischenablage kopieren"));
     controls->addWidget(m_copy);
     layout->addLayout(controls);
@@ -60,6 +69,11 @@ ValidationReport::ValidationReport(QWidget *parent)
 
     connect(m_filter, &QComboBox::currentIndexChanged, this, [this] { applyFilter(); });
     connect(m_copy, &QToolButton::clicked, this, &ValidationReport::copyToClipboard);
+}
+
+void ValidationReport::setHeadline(const QString &text)
+{
+    m_headline->setText(text);
 }
 
 void ValidationReport::setIssues(const QVector<CatalogIssue> &issues)

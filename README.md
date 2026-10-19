@@ -1,6 +1,6 @@
 # HamRadioTrainer 2026
 
-Neu aufgebaut von **Jan DC6DX**.
+Neu aufgebaut von **Jan - DC6DX**.
 
 Lern- und Prüfungstrainer für den Amateurfunk, mit ausdrücklich bearbeitbaren
 Fragenkatalogen für die Prüfungsklassen **N**, **E** und **A**.
@@ -138,11 +138,50 @@ reproduzierbar bleiben, werden aber nie neu gezogen. Gesperrte Fragen
 (`locked="true"`) werden ebenfalls nie gezogen, können aber noch in alten
 Statistiken vorkommen.
 
+### Fragenkatalog aktualisieren
+
+Das Programm prüft beim Start, ob die geladene Katalogdatei noch die
+ausgelieferte ist. Der Vergleich läuft über `data/catalogs/catalog-manifest.json`,
+das beim Import mitgeschrieben wird und je Klasse Prüfsumme, Auflagenzahl und
+Auflage enthält. Der Prüfbericht sagt daraufhin:
+
+* **entspricht dem ausgelieferten Stand** – nichts zu tun,
+* **von Hand geändert** – die Datei weicht ab; eine Aktualisierung aus der
+  Quelle überschreibt diese Änderungen,
+* **kein Sollstand** – das Programm kann es nicht sagen und rät nicht.
+
+Das ist der ganze Nachrichtenstand, den es geben kann: ob die Bundesnetzagentur
+inzwischen eine neue Auflage veröffentlicht hat, weiß nur das Archiv, das man
+selbst herunterlädt. Das Programm sagt das ausdrücklich, statt eine
+Versionsnummer zu erfinden.
+
+**Aktualisieren:** `Datei → Fragenkatalog aktualisieren…` wählt das Verzeichnis
+mit `fragenkatalog3b.json` aus dem geladenen Archiv. Das Programm schreibt
+alle drei Klassen und die Bilder in das Verzeichnis der geöffneten Katalogdatei,
+fragt vorher nach und nennt danach, wie viele Fragen und Bilder übernommen
+wurden. Anschließend lädt es den Katalog neu.
+
+Zwei Folgen sind gewollt und werden vorher angekündigt:
+
+* Handgeänderte Fragen in diesem Verzeichnis gehen verloren. Der Import legt
+  deshalb in `data/catalogs` eine Sicherung an, bevor er überschreibt.
+* Ändert sich der Katalog, fragt das Programm, ob der Fortschritt übernommen
+  werden soll — und verwirft nur die Lernstände zu Fragen, die sich geändert
+  haben. Siehe [Lernfortschritt](#lernfortschritt).
+
+Der Aufruf `hrt-catalog-import` macht dasselbe auf der Kommandozeile und ist
+der Weg für eigene Katalogdateien und für die CI.
+
+Geschrieben wird in das Verzeichnis der gerade geöffneten Katalogdatei. Bei
+einer Systeminstallation unter `/usr` oder `/usr/local` gehört das dem
+Administrator; das Programm sagt das, wenn es dort keine Sicherung anlegen
+kann, statt es zu versuchen und halb zu scheitern.
+
 ### Import aus dem BNetzA-Fragenkatalog
 
 Die amtlichen Daten liegen als `fragenkatalog3b.json` plus Verzeichnis `svgs/`
-vor. `hrt-catalog-import` erzeugt daraus je Prüfungsklasse einen Katalog und
-kopiert die benötigten Bilder:
+vor. `hrt-catalog-import` erzeugt daraus je Prüfungsklasse einen Katalog,
+kopiert die benötigten Bilder und schreibt den Sollstand:
 
 ```sh
 ./build/hrt-catalog-import \
@@ -152,11 +191,16 @@ kopiert die benötigten Bilder:
 
 Ergebnis des Imports der 3. Auflage, März 2024:
 
-| Katalog | Technische Kenntnisse | Betriebliche Kenntnisse | Kenntnisse von Vorschriften | gesamt |
-|---|---:|---:|---:|---:|
-| Klasse N | 195 | 172 | 204 | 571 |
-| Klasse E | 463 | 172 | 204 | 839 |
-| Klasse A | 716 | 172 | 204 | 1092 |
+| Katalog | N | E | A | Betriebliche Kenntnisse | Kenntnisse von Vorschriften | gesamt |
+|---|---:|---:|---:|---:|---:|---:|
+| Klasse N | 195 | – | – | 172 | 204 | 571 |
+| Klasse E | 195 | 463 | – | 172 | 204 | 1034 |
+| Klasse A | 195 | 463 | 716 | 172 | 204 | 1750 |
+
+Ein Zertifikat deckt alle technischen Blätter bis zur eigenen Klasse ab: Klasse N
+umfasst V, B und N, Klasse E zusätzlich E, Klasse A zusätzlich A. Die Zahlen
+stammen aus dem Import der 3. Auflage und lassen sich mit
+`./build/hrt-catalog-import --source … --output /tmp/pruefung` nachrechnen.
 
 Es werden 687 SVG-Dateien kopiert.
 
@@ -376,9 +420,60 @@ Erledigt:
 * Lernfortschritt wird je Katalog gespeichert und beim Start wiederhergestellt,
   gebunden an den Prüfsummen-Abdruck der Katalogdatei
 * Formeln der 219 LaTeX-Fragen werden dargestellt
-* Testsuite (168 Tests) und GitHub-Actions-Build für Linux und Windows 10/11
+* Testsuite (17 Programmläufe, 155 Testfunktionen) und GitHub-Actions-Build für
+  Linux und Windows 10/11
 
-### Lernfortschritt
+## Bedienung und Bilder
+
+Die Bedienelemente tragen Bilder aus `resources/icons/`: Menüpunkte, die drei
+Ansichten, die Knöpfe im Lernen und in der Prüfung, der Kopierknopf im
+Prüfbericht. Die Bilder liegen im Programm, statt aus dem System zu kommen —
+auf Windows gibt es gar kein Icon-Thema, und auf Linux wäre die Anwendung von
+einem Tag auf den nächsten anders ausgestaltet.
+
+Jedes Bild existiert zweimal, mit dunkler und mit heller Tinte; das Programm
+wählt zur Laufzeit die passende Variante. Die Strichzeichnungen entstehen aus
+`resources/icons/generate.py`: 24er Raster, 1,7 Strichstärke, abgerundete
+Enden. Wer eines ändert, ändert eine Zeile dort und lässt das Skript laufen,
+statt eine einzelne Datei zu überschreiben.
+
+Die sechs `stufe-*.svg` gehören zur Lernstufenleiste und entstehen nicht von
+Hand: Sie unterscheiden sich nur darin, wie viele von fünf Balken gefüllt sind,
+und werden deshalb im Skript aus der Stufennummer erzeugt. Gezeichnet wird die
+Stufe als Empfänger — fünf Balken, die von links nach rechts zunehmen und sich
+mit der Stufe füllen, von Grau über Rot, Orange und Bernstein bis Grün.
+
+Jede Stufe hat zwei Farben, eine für hellen und eine für dunklen Grund, weil
+ein einzelnes Rot auf Weiß gut sichtbar und auf Schwarz fast weg ist. Alle
+Töne liegen über 3:1 Kontrast auch gegen die dunkelste Zellenfarbe. Stufe 0
+bleibt farblos: „neu" ist kein schlechtes Ergebnis, sondern schlicht keins.
+
+Die Form trägt die Information neben der Farbe mit — fünf gefüllte Balken sind
+auch ohne Farbunterscheidung von einem gefüllten zu unterscheiden. Wer Rot und
+Grün nicht unterscheiden kann, liest die Stufe trotzdem richtig.
+
+Der Zellenhintergrund bleibt deshalb grau und wird nur dunkler, je mehr Fragen
+in der Stufe liegen. Er trägt die Anzahl, das Bild die Stufe; ein grüner
+Hintergrund unter einem gelben Stufenbild läse sich sonst als mittlere Stufe,
+obwohl die Zelle über die Anzahl sagt und nichts über die Stufe.
+
+`app.svg` ist das Programmsymbol. Für Windows entsteht daraus `app.ico`
+(16 bis 256 Pixel), weil Windows das Bild aus der Programmdatei selbst liest —
+ohne sie zeigt der Explorer ein Platzhalterbild und die Taskleiste gar keins.
+Beide Dateien werden erzeugt von
+
+```sh
+python3 resources/icons/generate.py
+```
+
+Ist `rsvg-convert` oder ImageMagick nicht vorhanden, entfällt das `.ico`; die
+Anwendung baut dann weiter und meldet es beim Einrichten.
+
+Der Test `icons` prüft den Satz: dass jedes Bild lädt, dass jedes etwas zeichnet
+und keines zu schwer ist, dass jeder Menüpunkt und jeder Knopf ein Bild trägt
+und dass kein Bild im Satz herumliegt, das niemand benutzt.
+
+## Lernfortschritt
 
 Der Fortschritt liegt je Prüfung im Anwendungsdatenverzeichnis, nicht im
 Katalog, weil die Kataloge bearbeitbar und Teil der Auslieferung sind:
@@ -390,13 +485,32 @@ Katalog, weil die Kataloge bearbeitbar und Teil der Auslieferung sind:
 
 Die Datei wird nach jeder ausgewerteten Prüfung und beim Beenden atomar
 geschrieben. Sie enthält Lernstufe, Trefferquote, Fälligkeit,
-Selbsteinschätzung und den SHA-256-Abdruck der Katalogdatei, zu der sie gehört.
+Selbsteinschätzung, den SHA-256-Abdruck der Katalogdatei, zu der sie gehört,
+und je Frage einen Fingerabdruck ihres Wortlauts.
 
-**Wird der Katalog von Hand geändert, gilt der Fortschritt als veraltet und wird
-verworfen.** Das ist beabsichtigt: nach dem Umschreiben einer Frage wäre ihr alter
-Stufe sonst eine falsche Aussage darüber, wie gut sie beherrscht wird. Nach dem
-Verwerfen baut sich der Fortschritt neu auf. Lernstände zu Fragen, die es im
-Katalog nicht mehr gibt, werden beim Laden ebenfalls verworfen.
+**Ein geänderter Katalog kostet den Fortschritt nicht.** Das Programm vergleicht
+nicht die ganze Datei, sondern Frage für Frage:
+
+| Fall | Was mit dem Lernstand geschieht |
+|---|---|
+| Frage unverändert | Stand bleibt vollständig |
+| Kennung noch da, Wortlaut anders | Frage zählt neu — die alte Antwort galt einem anderen Wortlaut |
+| Frage gibt es nicht mehr | Stand entfällt, wird aber gezählt |
+
+Beim Start mit geändertem Katalog fragt das Programm und nennt die Zahlen:
+*Fortschritt übernehmen* (Voreinstellung) oder *Neu beginnen*. Ein Schließen des
+Fensters oder Escape gilt als übernehmen — eine unbeabsichtigte Antwort darf
+nichts kosten. Vorher landet die bisherige Datei als `fortschritt-<klasse>.json.bak`
+neben der neuen, damit auch die Wahl *Neu beginnen* nichts endgültig löscht.
+
+Warum nicht einfach alles behalten: eine umformulierte Frage, deren alte Antwort
+mit „Lernstufe 4“ dasteht, sagt nichts darüber aus, wie gut die neue Fassung
+beherrscht wird. Sie neu zu zählen ist ehrlicher als sie zu belügen — und
+kostet nur diese eine Frage.
+
+Eine Fortschrittsdatei ohne Fingerabdrücke (Formatstand 1, vor dieser Erweiterung)
+wird nach der Kennung übernommen. Das Programm sagt dabei, dass es nur die Nummer
+verglichen hat und nicht den Wortlaut.
 
 Unter *Datei* lässt sich der Fortschritt bewusst zurücksetzen.
 
@@ -480,13 +594,31 @@ Noch offen:
 | Quellcode der Anwendung | GPL-3.0-or-later |
 | Fragentexte und Bilder | DL-DE-BY-2.0 |
 
-Der Quellenvermerk ist in jedem Katalog als `<attribution>` abgelegt und lautet
-wörtlich, wie von der BNetzA vorgegeben:
+Der Quellenvermerk steht in jedem Katalog in drei Feldern, weil die Angaben
+unterschiedliche Fragen beantworten:
 
-> Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen,
-> Bundesnetzagentur, 3. Auflage, März 2024,
-> (www.bundesnetzagentur.de/amateurfunk), Datenlizenz Deutschland –
-> Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)
+| Element | Inhalt |
+|---|---|
+| `<attribution>` | die Fragenbasis, wörtlich |
+| `<authority>` | der Herausgeber mit Anschrift |
+| `<licenseName>` / `<license>` | die Lizenz im Klartext und als Kennung |
+
+> **Fragenbasis:** Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen,
+> Bundesnetzagentur, 3. Auflage, März 2024 (www.bundesnetzagentur.de/amateurfunk)
+>
+> **Herausgeber:** Bundesnetzagentur für Elektrizität, Gas, Telekommunikation,
+> Post und Eisenbahnen, Tulpenfeld 4, 53113 Bonn
+>
+> **Lizenz Fragenkatalog:** Datenlizenz Deutschland – Namensnennung – Version 2.0
+> (www.govdata.de/dl-de/by-2-0)
+> **Datenlizenz:** DL-DE-BY-2.0
+
+Die Hilfe (`Hilfe → Über HamRadioTrainer 2026`) zeigt genau diese drei Blöcke,
+aus den Metadaten der geladenen Datei. Vorher stand dort ein Bausatz, in dem die
+Lizenz mitten im Quellenvermerk hing und der Prüfungsumfang aus der
+Amtsblatt-Verfügung genannt wurde — beides gehört an andere Stellen: der
+Umfang in die Prüfungsteile und die `notes` des Katalogs, die Lizenz auf ihre
+eigene Zeile.
 
 Sobald ein Katalog von Hand geändert wird, verlangt DL-DE-BY-2.0 zusätzlich den
 **Hinweis auf die Änderung**. Dafür gibt es das Element

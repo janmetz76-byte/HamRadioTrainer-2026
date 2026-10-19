@@ -101,5 +101,5 @@ Programm keine Fragen.
 |---|---|
 | `hamradiotrainer-2026.desktop` | Menüeintrag für die Desktop-Umgebung |
 | `hamradiotrainer-2026.metainfo.xml` | Angaben für die Softwarecenter |
-| `icons/hicolor/scalable/apps/hamradiotrainer-2026.svg` | Programmsymbol |
+| `../resources/icons/app.svg` | Programmsymbol, wird nach `share/icons/hicolor/scalable/apps` installiert |
 | `PKGBUILD` | Rezept für das AUR |

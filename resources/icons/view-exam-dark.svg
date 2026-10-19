@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>view-exam</title>
+  <g fill="none" stroke="#e3e8ea" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path  d="M6 3.4 h8.4 L19 8 v12.6 H6 Z"/>
+        <path  d="M14.2 3.6 V8 H19"/>
+        <path  d="M8.8 11.6 h4.4 M8.8 15 h3"/>
+        <path  d="M12.6 17.6 L17.2 13 l1.9 1.9 -4.6 4.6 -2.5.6 Z"/>
+    
+  </g>
+</svg>

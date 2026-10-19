@@ -159,7 +159,13 @@ struct CatalogMetadata
     int defaultPoints = 0;
     /// SPDX style licence identifier of the question text, e.g. DL-DE-BY-2.0.
     QString license;
-    /// Mandatory source notice, verbatim, whenever "license" is set.
+    /// The same licence in words, as the publisher names it, e.g.
+    /// "Datenlizenz Deutschland – Namensnennung – Version 2.0". The identifier
+    /// alone tells a reader nothing about what the licence permits.
+    QString licenseName;
+    /// Mandatory source notice, verbatim, whenever "license" is set. Names the
+    /// work and where it came from; the licence in words belongs in
+    /// "licenseName".
     QString attribution;
     /// Set as soon as the catalog was edited after the import.
     bool modifiedSinceSource = false;

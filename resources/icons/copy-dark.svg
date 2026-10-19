@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>copy</title>
+  <g fill="none" stroke="#e3e8ea" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect  x="8.4" y="8.4" width="11.8" height="11.8" rx="1.4"/>
+        <path  d="M15.6 8.4 V5.8 a1.4 1.4 0 0 0-1.4-1.4 H5.8 a1.4 1.4 0 0 0-1.4 1.4 v8.4 a1.4 1.4 0 0 0 1.4 1.4 h2.6"/>
+    
+  </g>
+</svg>

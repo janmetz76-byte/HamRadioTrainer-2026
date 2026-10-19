@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+#include "AppIcons.h"
 #include "CatalogView.h"
 
 #include "core/AppIdentity.h"
@@ -95,6 +96,7 @@ private slots:
     void aQuestionWithAnImageShowsIt();
     void columnWidthsCanBeDraggedAndSurviveARestart();
     void partTitlesCarryNoRegulation();
+    void theTreeShowsHowFarEachChapterHasGot();
 };
 
 void CatalogViewTest::initTestCase()
@@ -293,6 +295,63 @@ void CatalogViewTest::partTitlesCarryNoRegulation()
                  qPrintable(item->text(0)));
     }
 }
+
+void CatalogViewTest::theTreeShowsHowFarEachChapterHasGot()
+{
+    CatalogView view;
+    const Catalog katalog = loadCatalog();
+    view.setCatalog(&katalog, catalogPath());
+
+    QTreeWidget *tree = view.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    QVERIFY(tree->topLevelItemCount() > 0);
+    QTreeWidgetItem *teil = tree->topLevelItem(0);
+    QVERIFY(teil->childCount() > 0);
+    QTreeWidgetItem *kapitel = teil->child(0);
+    QVERIFY(kapitel->childCount() > 0);
+    QTreeWidgetItem *blatt = kapitel->child(0);
+
+    // Ohne jede Antwort ist der Baum nicht farblos, aber auch nicht rot:
+    // "noch nichts gelernt" ist kein schlechtes Ergebnis.
+    QVERIFY(!blatt->icon(0).isNull());
+    QCOMPARE(blatt->toolTip(0), QStringLiteral("noch keine Frage bearbeitet"));
+
+    // Alle Fragen gefestigt: dann muss der Baum das auch sagen. Sonst zeigt
+    // er nach einem fertigen Durchgang immer noch "nichts bearbeitet", und
+    // niemand merkt, dass der Fortschritt wirklich angekommen ist.
+    QVector<QuestionState> states;
+    for (const Question *frage : katalog.questions()) {
+        QuestionState stand;
+        stand.questionId = frage->id;
+        stand.timesAnswered = 6;
+        stand.timesCorrect = 6;
+        stand.box = Scheduler::MaxBox;
+        states.append(stand);
+    }
+    QVERIFY(!states.isEmpty());
+    view.setProgress(states);
+
+    const QIcon voll = AppIcons::get(QStringLiteral("status-high"));
+    QVERIFY(!voll.isNull());
+    const QIcon unvoll = AppIcons::get(QStringLiteral("status-new"));
+    QVERIFY(voll.pixmap(16, 16).toImage()
+                != unvoll.pixmap(16, 16).toImage());
+
+    QCOMPARE(blatt->icon(0).pixmap(16, 16).toImage(), voll.pixmap(16, 16).toImage());
+    // Der Tooltip nennt den Stand des Blattes selbst, nicht den des ganzen
+    // Teils - sonst wuesste man nicht, worauf sich die Zahl bezieht.
+    QVERIFY2(blatt->toolTip(0).contains(QStringLiteral("gefestigt")), qPrintable(blatt->toolTip(0)));
+    QVERIFY(blatt->toolTip(0).contains(QStringLiteral("bearbeitet")));
+
+    // Und wieder zurueck: der Fortschritt wandert, ohne dass der Baum neu
+    // aufgebaut wird. Ein Neuaufbau wuerde die Auswahl und die Scrolllage
+    // des Lernenden wegwerfen.
+    view.setProgress({});
+    QCOMPARE(blatt->icon(0).pixmap(16, 16).toImage(),
+             unvoll.pixmap(16, 16).toImage());
+    QCOMPARE(blatt->toolTip(0), QStringLiteral("noch keine Frage bearbeitet"));
+}
+
 
 QTEST_MAIN(CatalogViewTest)
 #include "tst_catalogview.moc"

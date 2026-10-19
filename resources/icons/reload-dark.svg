@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>reload</title>
+  <g fill="none" stroke="#e3e8ea" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path  d="M20 12 a8 8 0 1 1-2.7-6"/>
+        <path  d="M20.4 3.2 v3.9 h-3.9"/>
+    
+  </g>
+</svg>

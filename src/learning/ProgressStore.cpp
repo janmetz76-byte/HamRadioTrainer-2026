@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
 // Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "ProgressStore.h"
 
+#include <QCryptographicHash>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,11 +21,23 @@
 namespace hrt {
 namespace {
 
-/// A question id that the catalog does not contain any more must not keep a
-/// state, otherwise the weighting would grow entries nobody can ever reach.
-QStringList knownQuestionIds(const Catalog &catalog)
+/// What the progress remembers about a question, compressed into one word.
+///
+/// Only the content that decides whether an answer counts: the wording and the
+/// answers with their correctness. The id is the key, not the content, and the
+/// image paths are derived from the id by the import, so including them would
+/// only make the fingerprint jump without a change worth learning about.
+QString questionFingerprint(const Question &question)
 {
-    return questionIndex(catalog).keys();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hash.addData(question.text.toUtf8());
+    hash.addData("\n--\n");
+    for (const Answer &answer : question.answers) {
+        hash.addData(answer.text.toUtf8());
+        hash.addData(answer.correct ? "\1" : "\0");
+        hash.addData("\n");
+    }
+    return QString::fromLatin1(hash.result().toHex().left(16));
 }
 
 QString dateToString(const QDate &date)
@@ -78,7 +92,7 @@ ProgressLoad ProgressStore::load(const Catalog &catalog) const
         return result;
     }
     const int version = root.value(QStringLiteral("version")).toInt();
-    if (version != kVersion) {
+    if (version < kOldestReadableVersion || version > kVersion) {
         result.error = QCoreApplication::translate("ProgressStore", "Fortschrittsdatei hat die Version %1, erwartet wird %2.")
                            .arg(version)
                            .arg(kVersion);
@@ -90,21 +104,19 @@ ProgressLoad ProgressStore::load(const Catalog &catalog) const
         return result;
     }
 
-    // The catalogs are meant to be edited by hand. Progress from an earlier
-    // revision must not be applied to questions that may have been reworded,
-    // replaced or removed since.
-    if (root.value(QStringLiteral("catalogSha256")).toString() != catalog.sourceDigest) {
-        result.discardedDueToCatalogChange = true;
-        return result;
-    }
+    // Ein anderer Katalogeinstand heisst nicht, dass alles weg darf. Er heisst
+    // nur, dass jede Frage fuer sich geprueft werden muss.
+    result.catalogChanged =
+        root.value(QStringLiteral("catalogSha256")).toString() != catalog.sourceDigest;
 
-    const QStringList known = knownQuestionIds(catalog);
+    const QHash<QString, const Question *> known = questionIndex(catalog);
     const QJsonArray states = root.value(QStringLiteral("states")).toArray();
     for (const QJsonValue &value : states) {
         const QJsonObject entry = value.toObject();
         QuestionState state;
         state.questionId = entry.value(QStringLiteral("id")).toString();
-        if (state.questionId.isEmpty() || !known.contains(state.questionId)) {
+        const auto it = known.constFind(state.questionId);
+        if (state.questionId.isEmpty() || it == known.constEnd()) {
             ++result.droppedStates;
             continue;
         }
@@ -118,6 +130,27 @@ ProgressLoad ProgressStore::load(const Catalog &catalog) const
         state.confidence = confidence >= int(Confidence::Guessing) && confidence <= int(Confidence::Certain)
                                ? static_cast<Confidence>(confidence)
                                : Confidence::Unknown;
+
+        const QString fingerprint = entry.value(QStringLiteral("hash")).toString();
+        if (fingerprint.isEmpty()) {
+            // Datei aus der Zeit vor den Fingerabdruecken. Die Kennung ist
+            // das Einzige, was wir haben - das wird dem Lernenden auch so
+            // gesagt, statt es zu verschweigen.
+            result.withoutFingerprints = true;
+            ++result.keptStates;
+        } else if (result.catalogChanged
+                   && fingerprint != questionFingerprint(*it.value())) {
+            // Gleiche Kennung, anderer Wortlaut. Die Antwort von damals gilt
+            // fuer eine Frage, die es so nicht mehr gibt. Sie wird als
+            // "noch nie beantwortet" uebernommen: das ist ehrlicher, als dem
+            // Lernenden eine sichere Antwort unterzuschieben.
+            const QString id = state.questionId;
+            state = QuestionState{};
+            state.questionId = id;
+            ++result.resetStates;
+        } else {
+            ++result.keptStates;
+        }
         result.states.append(state);
     }
 
@@ -127,14 +160,21 @@ ProgressLoad ProgressStore::load(const Catalog &catalog) const
 bool ProgressStore::save(const Catalog &catalog, const QVector<QuestionState> &states,
                          QString *error) const
 {
-    const QStringList known = knownQuestionIds(catalog);
+    const QHash<QString, const Question *> known = questionIndex(catalog);
 
     QJsonArray array;
     for (const QuestionState &state : states) {
-        if (!known.contains(state.questionId))
-            continue; // a question that no longer exists keeps no state
+        // Eine Frage, die es nicht mehr gibt, darf keinen Stand behalten: sonst
+        // waechst die Gewichtung um Eintraege, die niemand erreichen kann.
+        const auto it = known.constFind(state.questionId);
+        if (it == known.constEnd())
+            continue;
+
         QJsonObject entry;
         entry.insert(QStringLiteral("id"), state.questionId);
+        // Der Fingerabdruck erlaubt es, beim naechsten Katalogwechsel zu
+        // unterscheiden, was unveraendert blieb und was neu geschrieben wurde.
+        entry.insert(QStringLiteral("hash"), questionFingerprint(*it.value()));
         entry.insert(QStringLiteral("box"), state.box);
         entry.insert(QStringLiteral("answered"), state.timesAnswered);
         entry.insert(QStringLiteral("correct"), state.timesCorrect);
@@ -179,6 +219,24 @@ bool ProgressStore::save(const Catalog &catalog, const QVector<QuestionState> &s
     if (!file.commit()) {
         if (error)
             *error = QCoreApplication::translate("ProgressStore", "Fortschrittsdatei nicht ersetzt: %1").arg(file.errorString());
+        return false;
+    }
+    return true;
+}
+
+bool ProgressStore::archive(QString *error) const
+{
+    // Solange es keine Fortschrittsdatei gibt, gibt es nichts zu sichern.
+    if (!QFile::exists(m_path))
+        return true;
+
+    const QString target = m_path + QStringLiteral(".bak");
+    QFile::remove(target);
+    if (!QFile::copy(m_path, target)) {
+        if (error) {
+            *error = QCoreApplication::translate(
+                         "ProgressStore", "Fortschritt nicht sicherbar: %1").arg(target);
+        }
         return false;
     }
     return true;

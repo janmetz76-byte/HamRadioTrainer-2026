@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -17,8 +17,13 @@ using namespace hrt;
 namespace {
 
 /// A catalog with the given question ids, standing in for a hand editable file.
+///
+/// The wording of a question is its id unless the caller says otherwise: a
+/// reworded question keeps its id and changes its text, which is exactly the
+/// case the progress has to tell apart from an untouched one.
 Catalog makeCatalog(const QString &examId, const QStringList &questionIds,
-                    const QString &digest = QStringLiteral("digest-A"))
+                    const QString &digest = QStringLiteral("digest-A"),
+                    const QString &reworded = QString())
 {
     Catalog catalog;
     catalog.metadata.examId = examId;
@@ -43,7 +48,7 @@ Catalog makeCatalog(const QString &examId, const QStringList &questionIds,
     for (const QString &id : questionIds) {
         Question question;
         question.id = id;
-        question.text = id;
+        question.text = id == reworded ? QStringLiteral("%1, neu formuliert").arg(id) : id;
         chapter.questions.append(question);
     }
     section.chapters.append(chapter);
@@ -79,7 +84,11 @@ private slots:
     void progressSurvivesARoundTrip();
     void unknownQuestionsAreNotSaved();
     void statesOfRemovedQuestionsAreDropped();
-    void changedCatalogDiscardsTheProgress();
+    void changedCatalogKeepsWhatStillMatches();
+    void aRewordedQuestionStartsOverWhileTheRestStays();
+    void progressOfRemovedQuestionsIsCountedNotApplied();
+    void anOldFileWithoutFingerprintsIsTakenOverWithAVerdict();
+    void archiveKeepsTheFileBeforeItIsRebound();
     void foreignFileIsRejected();
     void wrongVersionIsRejected();
     void foreignCatalogIsRejected();
@@ -105,7 +114,7 @@ void ProgressStoreTest::missingFileIsNotAnError()
 
     QVERIFY(loaded.error.isEmpty());
     QVERIFY(loaded.states.isEmpty());
-    QVERIFY(!loaded.discardedDueToCatalogChange);
+    QVERIFY(!loaded.catalogChanged);
 }
 
 void ProgressStoreTest::progressSurvivesARoundTrip()
@@ -181,7 +190,170 @@ void ProgressStoreTest::statesOfRemovedQuestionsAreDropped()
 
 /// The catalog is meant to be edited by hand, so progress of an earlier
 /// revision must not be applied to questions that may have changed.
-void ProgressStoreTest::changedCatalogDiscardsTheProgress()
+void ProgressStoreTest::changedCatalogKeepsWhatStillMatches()
+{
+    // Der Kern des Versprechens: eine Aktualisierung, bei der keine einzige
+    // Frage anders formuliert wurde, kostet den Lernenden nichts.
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("fortschritt.json"));
+    ProgressStore store(path);
+
+    const Catalog original = makeCatalog(QStringLiteral("DE-E"),
+                                         {QStringLiteral("q1"), QStringLiteral("q2")},
+                                         QStringLiteral("digest-1"));
+    QVERIFY(store.save(original, {makeState(QStringLiteral("q1"), 4),
+                                  makeState(QStringLiteral("q2"), 2)},
+                       nullptr));
+
+    const Catalog aktualisiert = makeCatalog(QStringLiteral("DE-E"),
+                                             {QStringLiteral("q1"), QStringLiteral("q2")},
+                                             QStringLiteral("digest-2"));
+    const ProgressLoad loaded = store.load(aktualisiert);
+
+    QVERIFY(loaded.error.isEmpty());
+    QVERIFY2(loaded.catalogChanged, "der neue Katalogeinstand muss erkannt werden");
+    QCOMPARE(loaded.states.size(), 2);
+    QCOMPARE(loaded.keptStates, 2);
+    QCOMPARE(loaded.resetStates, 0);
+    QCOMPARE(loaded.droppedStates, 0);
+
+    // Die Staende sind unveraendert, nicht zurueckgesetzt.
+    QCOMPARE(loaded.states.first().box, 4);
+    QCOMPARE(loaded.states.last().box, 2);
+
+    // Und die alte Datei laesst sich weiterhin fuer ihren Katalogeinstand
+    // lesen.
+    QCOMPARE(store.load(original).states.size(), 2);
+}
+
+void ProgressStoreTest::aRewordedQuestionStartsOverWhileTheRestStays()
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("fortschritt.json"));
+    ProgressStore store(path);
+
+    const QStringList ids = {QStringLiteral("q1"), QStringLiteral("q2")};
+    QVERIFY(store.save(makeCatalog(QStringLiteral("DE-E"), ids, QStringLiteral("digest-1")),
+                       {makeState(QStringLiteral("q1"), 5), makeState(QStringLiteral("q2"), 3)},
+                       nullptr));
+
+    const ProgressLoad loaded = store.load(
+        makeCatalog(QStringLiteral("DE-E"), ids, QStringLiteral("digest-2"),
+                    QStringLiteral("q1")));
+
+    QVERIFY(loaded.catalogChanged);
+    QCOMPARE(loaded.states.size(), 2);
+    QCOMPARE(loaded.resetStates, 1);
+    QCOMPARE(loaded.keptStates, 1);
+
+    // q1 zaehlt neu: die alte Antwort galt fuer einen anderen Wortlaut.
+    QuestionState neu;
+    for (const QuestionState &state : loaded.states) {
+        if (state.questionId == QStringLiteral("q1"))
+            neu = state;
+    }
+    QVERIFY2(neu.isNew(), "eine umformulierte Frage darf nicht als beantwortet gelten");
+    QCOMPARE(neu.box, 0);
+    QCOMPARE(neu.timesAnswered, 0);
+
+    // q2 bleibt, wo sie war.
+    for (const QuestionState &state : loaded.states) {
+        if (state.questionId == QStringLiteral("q2"))
+            QCOMPARE(state.box, 3);
+    }
+}
+
+void ProgressStoreTest::progressOfRemovedQuestionsIsCountedNotApplied()
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("fortschritt.json"));
+    ProgressStore store(path);
+
+    QVERIFY(store.save(makeCatalog(QStringLiteral("DE-E"),
+                                   {QStringLiteral("q1"), QStringLiteral("q2"),
+                                    QStringLiteral("q3")},
+                                   QStringLiteral("digest-1")),
+                       {makeState(QStringLiteral("q1"), 4), makeState(QStringLiteral("q2"), 2),
+                        makeState(QStringLiteral("q3"), 1)},
+                       nullptr));
+
+    const ProgressLoad loaded = store.load(makeCatalog(
+        QStringLiteral("DE-E"), {QStringLiteral("q1"), QStringLiteral("q2")},
+        QStringLiteral("digest-2")));
+
+    QVERIFY(loaded.catalogChanged);
+    QCOMPARE(loaded.states.size(), 2);
+    QCOMPARE(loaded.droppedStates, 1);
+    QCOMPARE(loaded.keptStates, 2);
+
+    // Die entfernte Frage kommt auch nach dem naechsten Speichern nicht
+    // zurueck: gespeichert wird nur, was der Katalog noch kennt.
+    const Catalog aktualisiert = makeCatalog(
+        QStringLiteral("DE-E"), {QStringLiteral("q1"), QStringLiteral("q2")},
+        QStringLiteral("digest-3"));
+    QVERIFY(store.save(aktualisiert, loaded.states, nullptr));
+
+    const ProgressLoad erneut = store.load(aktualisiert);
+    QCOMPARE(erneut.states.size(), 2);
+    QVERIFY2(!erneut.catalogChanged, "nach dem Neuspeichern ist der Stand gebunden");
+}
+
+void ProgressStoreTest::anOldFileWithoutFingerprintsIsTakenOverWithAVerdict()
+{
+    QTemporaryDir dir;
+    const QString path = dir.filePath(QStringLiteral("fortschritt.json"));
+
+    // Eine Datei aus der Zeit vor den Fingerabdruecken: gleiche Felder,
+    // Version 1, kein "hash".
+    QJsonObject entry;
+    entry.insert(QStringLiteral("id"), QStringLiteral("q1"));
+    entry.insert(QStringLiteral("box"), 5);
+    entry.insert(QStringLiteral("answered"), 10);
+    entry.insert(QStringLiteral("correct"), 5);
+    entry.insert(QStringLiteral("streak"), 2);
+    entry.insert(QStringLiteral("lastSeen"), QStringLiteral("2026-09-01"));
+    entry.insert(QStringLiteral("dueOn"), QStringLiteral("2026-09-20"));
+    entry.insert(QStringLiteral("confidence"), int(Confidence::Certain));
+
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), ProgressStore::kFormat);
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("examId"), QStringLiteral("DE-E"));
+    root.insert(QStringLiteral("catalogSha256"), QStringLiteral("digest-1"));
+    root.insert(QStringLiteral("states"), QJsonArray{entry});
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QJsonDocument(root).toJson());
+    file.close();
+
+    const ProgressLoad geladen = ProgressStore(path).load(
+        makeCatalog(QStringLiteral("DE-E"), {QStringLiteral("q1")}, QStringLiteral("digest-2")));
+
+    QVERIFY(geladen.error.isEmpty());
+    QVERIFY(geladen.catalogChanged);
+    QVERIFY2(geladen.withoutFingerprints,
+             "ohne Fingerabdruck muss das Programm sagen, dass es nur die Kennung sah");
+    QCOMPARE(geladen.keptStates, 1);
+    QCOMPARE(geladen.resetStates, 0);
+
+    // Der Stand selbst bleibt unangetastet: er wird nicht weggenommen, nur
+    // eingeordnet.
+    QCOMPARE(geladen.states.first().box, 5);
+
+    // Ein fremdes, hoeheres Format bleibt abgelehnt.
+    QJsonObject fremd = root;
+    fremd.insert(QStringLiteral("version"), ProgressStore::kVersion + 1);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(QJsonDocument(fremd).toJson());
+    file.close();
+    QVERIFY(!ProgressStore(path)
+                 .load(makeCatalog(QStringLiteral("DE-E"), {QStringLiteral("q1")},
+                                   QStringLiteral("digest-2")))
+                 .error.isEmpty());
+}
+
+void ProgressStoreTest::archiveKeepsTheFileBeforeItIsRebound()
 {
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("fortschritt.json"));
@@ -189,17 +361,25 @@ void ProgressStoreTest::changedCatalogDiscardsTheProgress()
 
     const Catalog original = makeCatalog(QStringLiteral("DE-E"), {QStringLiteral("q1")},
                                          QStringLiteral("digest-1"));
-    QVERIFY(store.save(original, {makeState(QStringLiteral("q1"), 5)}, nullptr));
+    QVERIFY(store.save(original, {makeState(QStringLiteral("q1"), 4)}, nullptr));
 
-    const Catalog edited = makeCatalog(QStringLiteral("DE-E"), {QStringLiteral("q1")},
-                                       QStringLiteral("digest-2"));
-    const ProgressLoad loaded = store.load(edited);
-    QVERIFY2(loaded.discardedDueToCatalogChange, "geänderter Katalog muss den Fortschritt verwerfen");
-    QVERIFY(loaded.states.isEmpty());
-    QVERIFY(loaded.error.isEmpty());
+    QString error;
+    QVERIFY2(store.archive(&error), qPrintable(error));
+    QVERIFY2(QFile::exists(path + QStringLiteral(".bak")),
+             "ohne Sicherung waere der alte Stand nach dem Ueberschreiben weg");
 
-    // The old revision still loads its own progress.
-    QCOMPARE(store.load(original).states.size(), 1);
+    // Der Sicherungsstand traegt weiterhin die alte Bindung.
+    QJsonDocument backup =
+        QJsonDocument::fromJson([&] {
+            QFile handle(path + QStringLiteral(".bak"));
+            handle.open(QIODevice::ReadOnly);
+            return handle.readAll();
+        }());
+    QCOMPARE(backup.object().value(QStringLiteral("catalogSha256")).toString(),
+             QStringLiteral("digest-1"));
+
+    // Ohne Datei ist die Sicherung kein Fehler.
+    QVERIFY(ProgressStore(dir.filePath(QStringLiteral("gibtsnicht.json"))).archive(nullptr));
 }
 
 void ProgressStoreTest::foreignFileIsRejected()
@@ -325,7 +505,7 @@ void ProgressStoreTest::clearEmptiesTheProgress()
 
     // The file still exists and stays bound to the current catalog.
     QVERIFY(QFile::exists(path));
-    QVERIFY(!store.load(catalog).discardedDueToCatalogChange);
+    QVERIFY(!store.load(catalog).catalogChanged);
 }
 
 void ProgressStoreTest::defaultPathDependsOnTheExam()

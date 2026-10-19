@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -73,6 +73,8 @@ bool readMetadata(QXmlStreamReader &reader, CatalogMetadata *metadata, QString *
             }
         } else if (name == QLatin1String("license")) {
             metadata->license = reader.readElementText().trimmed();
+        } else if (name == QLatin1String("licenseName")) {
+            metadata->licenseName = reader.readElementText().trimmed();
         } else if (name == QLatin1String("attribution")) {
             metadata->attribution = reader.readElementText().trimmed();
         } else if (name == QLatin1String("modifiedSinceSource")) {
@@ -333,7 +335,17 @@ bool CatalogXml::load(const QString &path, Catalog *catalog, QString *error)
     }
     const QByteArray document = file.readAll();
     file.close();
-    return loadFromString(document, catalog, error, path);
+    if (!loadFromString(document, catalog, error, path))
+        return false;
+
+    // Die Pruefsumme ueber genau die Bytes, die auf der Platte liegen. Ohne
+    // sie bleibt sourceDigest leer, und der an den Katalogeinstand gebundene
+    // Lernfortschritt haengt an einem Vergleich zweier leerer Zeichenketten -
+    // ein geaenderter Katalog wuerde seinen Fortschritt behalten.
+    catalog->sourceDigest =
+        QString::fromLatin1(QCryptographicHash::hash(document, QCryptographicHash::Sha256)
+                                .toHex());
+    return true;
 }
 
 QByteArray CatalogXml::toXml(const Catalog &catalog)
@@ -368,6 +380,8 @@ QByteArray CatalogXml::toXml(const Catalog &catalog)
         writer.writeTextElement(QStringLiteral("sourceUrl"), metadata.sourceUrl);
     if (!metadata.license.isEmpty())
         writer.writeTextElement(QStringLiteral("license"), metadata.license);
+    if (!metadata.licenseName.isEmpty())
+        writer.writeTextElement(QStringLiteral("licenseName"), metadata.licenseName);
     if (!metadata.attribution.isEmpty())
         writer.writeTextElement(QStringLiteral("attribution"), metadata.attribution);
     if (metadata.modifiedSinceSource)

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>status-mid</title>
+  <g fill="none" stroke="#e3e8ea" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect fill="#e8c33f" stroke="none" x="3.4" y="15.8" width="2.6" height="3.6" rx="0.9"/>
+        <rect fill="#e8c33f" stroke="none" x="7.2" y="12.7" width="2.6" height="6.7" rx="0.9"/>
+        <rect fill="#e8c33f" stroke="none" x="11.0" y="9.6" width="2.6" height="9.8" rx="0.9"/>
+        <rect  x="14.8" y="6.5" width="2.6" height="12.9" rx="0.9"/>
+        <rect  x="18.6" y="3.4" width="2.6" height="16.0" rx="0.9"/>
+  </g>
+</svg>

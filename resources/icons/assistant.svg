@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>assistant</title>
+  <g fill="none" stroke="#2f3437" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle  cx="12" cy="12" r="8.6"/>
+        <path  d="M15.8 8.2 L13.9 13.9 L8.2 15.8 L10.1 10.1 Z"/>
+    
+  </g>
+</svg>

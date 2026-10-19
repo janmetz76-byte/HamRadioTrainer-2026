@@ -1,0 +1,35 @@
+{
+    "catalogs": [
+        {
+            "catalogVersion": "3. Auflage, März 2024",
+            "examClass": "N",
+            "file": "de-amateurfunk-N.xml",
+            "images": 91,
+            "questions": 571,
+            "sha256": "1c3628d4a0a43c88ae2fe8edfd89a806b09fab67e0fd8f5cf8e3929d052ce148",
+            "validFrom": "2024-06-24"
+        },
+        {
+            "catalogVersion": "3. Auflage, März 2024",
+            "examClass": "E",
+            "file": "de-amateurfunk-E.xml",
+            "images": 301,
+            "questions": 1034,
+            "sha256": "81f2dd63b08e42a7e623236cb3e29d7ead609ce79a30c3bcbcb902cc56ae3708",
+            "validFrom": "2024-06-24"
+        },
+        {
+            "catalogVersion": "3. Auflage, März 2024",
+            "examClass": "A",
+            "file": "de-amateurfunk-A.xml",
+            "images": 687,
+            "questions": 1750,
+            "sha256": "34f4f0c1aea5cc163e7e176538bbd8b2cd476d4e0d26f82fdb49779b8e880e69",
+            "validFrom": "2024-06-24"
+        }
+    ],
+    "comment": "Sollstand der ausgelieferten Kataloge. Wird vom Import hrt-catalog-import erzeugt; das Programm vergleicht damit die geladene Katalogdatei.",
+    "schema": 1,
+    "source": "Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen, Bundesnetzagentur"
+}
+

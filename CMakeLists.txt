@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # HamRadioTrainer 2026
-# Neu aufgebaut von Jan DC6DX
+# Neu aufgebaut von Jan - DC6DX
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the Free
@@ -38,6 +38,8 @@ add_library(hrt_core STATIC
     src/core/LatexFormatter.cpp
     src/core/AppIdentity.cpp
     src/core/CatalogLocator.cpp
+    src/core/CatalogImporter.cpp
+    src/core/CatalogManifest.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
     src/learning/LearningStatistics.cpp
@@ -76,15 +78,22 @@ target_compile_definitions(hrt_core PUBLIC
 # the very same code the application runs.
 add_library(hrt_ui STATIC
     src/ui/AnswerView.cpp
+    src/ui/SectionBar.cpp
+    src/ui/SectionBar.h
     src/ui/CatalogView.cpp
     src/ui/ExamWidget.cpp
     src/ui/ImageLoader.cpp
     src/ui/LearningWidget.cpp
+    src/ui/StatisticsWidget.cpp
     src/ui/StartupDialog.cpp
     src/ui/ValidationReport.cpp)
 
 target_include_directories(hrt_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 target_link_libraries(hrt_ui PUBLIC hrt_core Qt6::Widgets Qt6::Gui)
+target_sources(hrt_ui PRIVATE
+    src/ui/AppIcons.cpp
+    src/ui/AppIcons.h
+    resources/hrt.qrc)
 if(TARGET Qt6::Svg)
     # Question and answer images are SVG in the BNetzA source, so a raster
     # fallback would show nothing at all.
@@ -97,6 +106,15 @@ endif()
 # nicht in ein anderes Executable gelinkt werden.
 add_library(hrt_app STATIC src/ui/MainWindow.cpp)
 target_link_libraries(hrt_app PUBLIC hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
+
+# Das Icon steckt in der Programmdatei, damit der Explorer es ohne Umweg
+# anzeigt, und wird zusaetzlich neben die Datei gelegt, damit die
+# Windows-Werkzeuge und die NAS-Verpackung es finden.
+if(WIN32)
+    set_source_files_properties(resources/icons/app.ico PROPERTIES
+        HEADER_FILE_ONLY TRUE)
+    target_sources(HamRadioTrainer2026 PRIVATE resources/icons/app.ico)
+endif()
 
 add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE src/main.cpp)
 
@@ -131,10 +149,16 @@ target_link_libraries(hrt-catalog-tool PRIVATE hrt_core)
 set_target_properties(hrt-catalog-tool PROPERTIES OUTPUT_NAME "hrt-catalog-tool")
 install(TARGETS hrt-catalog-tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Imports the Bundesnetzagentur question catalog (DL-DE-BY-2.0). It is only
-# needed to regenerate the catalogs, never at runtime.
+# Imports the Bundesnetzagentur question catalog (DL-DE-BY-2.0).
+#
+# The work lives in hrt_core, because the application imports too: "Datei ->
+# Fragenkatalog aktualisieren…" writes the same files from the archive the
+# learner has downloaded. This binary is the way to do it without starting the
+# program, for CI and for one's own catalog files. It is installed for the
+# command line, but the program does not need it at runtime.
 add_executable(hrt-catalog-import tools/catalog-import.cpp)
 target_link_libraries(hrt-catalog-import PRIVATE hrt_core)
+install(TARGETS hrt-catalog-import RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if(Qt6Test_FOUND)
     enable_testing()
@@ -149,7 +173,8 @@ if(Qt6Test_FOUND)
     if(TARGET Qt6::Widgets)
         foreach(widget_test tst_examwidget tst_imageloader tst_learningwidget
                           tst_validationreport tst_catalogview
-                          tst_startupdialog)
+                          tst_startupdialog tst_answerview
+                          tst_statisticswidget)
             add_executable(${widget_test} tests/${widget_test}.cpp)
             target_link_libraries(${widget_test} PRIVATE hrt_ui hrt_core Qt6::Test Qt6::Widgets)
             add_test(NAME ${widget_test} COMMAND ${widget_test})
@@ -167,6 +192,23 @@ if(Qt6Test_FOUND)
         HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME startupflow COMMAND tst_startupflow)
     set_tests_properties(startupflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    add_executable(tst_icons tests/tst_icons.cpp)
+    target_link_libraries(tst_icons PRIVATE hrt_app hrt_ui hrt_core Qt6::Test Qt6::Widgets)
+    target_compile_definitions(tst_icons PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME icons COMMAND tst_icons)
+    set_tests_properties(icons PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    add_executable(tst_catalogimporter tests/tst_catalogimporter.cpp)
+    target_link_libraries(tst_catalogimporter PRIVATE hrt_core Qt6::Test)
+    add_test(NAME catalogimporter COMMAND tst_catalogimporter)
+
+    add_executable(tst_catalogmanifest tests/tst_catalogmanifest.cpp)
+    target_link_libraries(tst_catalogmanifest PRIVATE hrt_core Qt6::Test)
+    target_compile_definitions(tst_catalogmanifest PRIVATE
+        HRT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME catalogmanifest COMMAND tst_catalogmanifest)
 
     add_executable(tst_latex tests/tst_latex.cpp)
     # Prueft, dass das Programm seine Kataloge an den Orten findet, an denen
@@ -201,9 +243,12 @@ install(TARGETS HamRadioTrainer2026
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+# "catalog-manifest.json" gehoert dazu: es nennt den Sollstand der
+# ausgelieferten Kataloge. Ohne die Datei kann das installierte Programm nicht
+# sagen, ob ein Katalog noch der ausgelieferte ist.
 install(DIRECTORY data/catalogs
     DESTINATION ${HRT_CATALOG_INSTALL_DIR}
-    FILES_MATCHING PATTERN "*.xml")
+    FILES_MATCHING PATTERN "*.xml" PATTERN "catalog-manifest.json")
 install(DIRECTORY data/catalogs/images
     DESTINATION ${HRT_CATALOG_INSTALL_DIR})
 install(FILES schema/catalog.xsd
@@ -217,8 +262,20 @@ if(UNIX AND NOT APPLE)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
     install(FILES packaging/hamradiotrainer-2026.metainfo.xml
         DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
-    install(FILES packaging/icons/hicolor/scalable/apps/hamradiotrainer-2026.svg
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+    # Der Dateiname im Themenverzeichnis ist der Programmname, nicht der
+    # Quelldateiname: die Desktop-Datei sucht "hamradiotrainer-2026", und
+    # findet "app.svg" nicht. Genau daran scheitert das Symbol im Starter.
+    install(FILES resources/icons/app.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME hamradiotrainer-2026.svg)
+endif()
+
+if(WIN32)
+    # Das Symbol gehoert an die Programmdatei und nicht in die
+    # Installationsdaten: dann traegt auch eine kopierte, nicht
+    # installierte HamRadioTrainer2026.exe ihr eigenes Bild.
+    install(FILES resources/icons/app.ico
+        DESTINATION .)
 endif()
 
 # Windows: collect Qt runtime next to the executable so the bundle is portable.
@@ -242,7 +299,7 @@ endif()
 # builds from source; packaging/PKGBUILD is the recipe for it.
 # ---------------------------------------------------------------------------
 set(CPACK_PACKAGE_NAME "hamradiotrainer-2026")
-set(CPACK_PACKAGE_VENDOR "Jan DC6DX und HamRadioTrainer 2026 contributors")
+set(CPACK_PACKAGE_VENDOR "Jan - DC6DX und HamRadioTrainer 2026 contributors")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
 set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
@@ -268,6 +325,22 @@ if(WIN32)
     set(CPACK_NSIS_DISPLAY_NAME "HamRadioTrainer 2026")
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "HamRadioTrainer 2026")
+
+    # Ein Installer ohne eigenes Symbol bekommt in der Programmuebersicht
+    # das Default-Icon der CPack-Vorlage - ein schlichter Kasten neben
+    # Programmen, die alle ein Bild tragen. Alle vier Stellen muessen
+    # gesetzt sein: Installationsprogramm, Uninstall-Symbol, Starter auf dem
+    # Desktop und das Symbol der installierten Datei.
+    set(CPACK_PACKAGE_EXECUTABLES
+        "HamRadioTrainer2026;HamRadioTrainer 2026")
+    set(CPACK_CREATE_DESKTOP_LINKS "HamRadioTrainer2026")
+    set(CPACK_NSIS_MUI_ICONSET "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+    set(CPACK_NSIS_MUI_UNICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+    set(CPACK_NSIS_MUI_UNINSTALLER_ICON
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+    set(CPACK_NSIS_MUI_SHORTCUT_ICON
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "${CPACK_PACKAGE_NAME}.ico")
 else()
     set(CPACK_GENERATOR "DEB;RPM")
 

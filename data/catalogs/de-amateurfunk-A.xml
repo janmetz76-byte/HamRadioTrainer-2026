@@ -4,14 +4,15 @@
     <title>Prüfungsfragen Klasse A – 3. Auflage, März 2024</title>
     <examClass>A</examClass>
     <examId>DE-A</examId>
-    <authority>Bundesnetzagentur für Elektrizität, Gas, Telekommunikation, Post und Eisenbahnen</authority>
+    <authority>Bundesnetzagentur für Elektrizität, Gas, Telekommunikation, Post und Eisenbahnen, Tulpenfeld 4, 53113 Bonn</authority>
     <catalogVersion>3. Auflage, März 2024</catalogVersion>
     <validFrom>2024-06-24</validFrom>
     <language>de</language>
     <defaultPoints>1</defaultPoints>
     <sourceUrl>https://www.bundesnetzagentur.de/amateurfunk</sourceUrl>
     <license>DL-DE-BY-2.0</license>
-    <attribution>Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen, Bundesnetzagentur, 3. Auflage, März 2024, (www.bundesnetzagentur.de/amateurfunk), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)</attribution>
+    <licenseName>Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0)</licenseName>
+    <attribution>Prüfungsfragen zum Erwerb von Amateurfunkprüfungsbescheinigungen, Bundesnetzagentur, 3. Auflage, März 2024 (www.bundesnetzagentur.de/amateurfunk)</attribution>
     <modifiedSinceSource>true</modifiedSinceSource>
     <notes>Prüfungsumfang nach Amtsblatt-Verfügung 29/2024 (gültig ab 24.06.2024): jeder Prüfungsteil hat 25 Fragen, ein Punkt je richtiger Antwort, bestanden ab 19 Punkten, also 6 zulässige Fehler. Prüfungsteil A hat 60 Minuten, die übrigen 45. Jede Frage zählt damit einen Fehlerpunkt. Geändert gegenüber der Quelle der Bundesnetzagentur: die Lizenzkennung war dort fehlerhaft als 'DL-DE-&gt;BY-2.0' angegeben und wurde auf die veröffentlichte Kennung DL-DE-BY-2.0 berichtigt. Außerdem ist in der Quelle durchgehend die erste Antwort richtig; da die Prüfungsbögen die Antworten mischen, wurde die Position der richtigen Antwort hier gleichmäßig auf alle vier Plätze verteilt. Fragetext, Antworttexte und Bildverweise sind unverändert.</notes>
   </metadata>

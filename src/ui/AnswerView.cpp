@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -60,6 +60,29 @@ void tintRow(QWidget *row, const QColor &colour)
     row->setPalette(palette);
 }
 
+/// Takes the colour off a row again.
+///
+/// Setting a QPalette would not do: the palette belongs to the whole row, and
+/// leaving the copied one behind would carry the tint into the next question
+/// that reuses the widget. Only the two things tintRow() switched have to be
+/// switched off again.
+void untintRow(QWidget *row)
+{
+    row->setAutoFillBackground(false);
+    QPalette palette = row->palette();
+    palette.setColor(QPalette::Window, row->parentWidget()->palette().color(QPalette::Window));
+    row->setPalette(palette);
+}
+
+/// The colour of a chosen answer.
+///
+/// Blau, nicht die Farbe der Loesung: nach dem Zeigen der Loesung wird die
+/// Zeile gruen oder rot, und eine ausgewaehlte Zeele, die vorher blau war,
+/// muss sich nicht erst ein Schritt spaeter erklaeren lassen.
+constexpr int AUSWAHL_R = 0xdd;
+constexpr int AUSWAHL_G = 0xe8;
+constexpr int AUSWAHL_B = 0xf5;
+
 } // namespace
 
 AnswerView::AnswerView(QWidget *parent)
@@ -95,6 +118,10 @@ void AnswerView::clear()
     for (QLabel *mark : m_marks)
         mark->deleteLater();
     m_marks.clear();
+
+    for (QLabel *badge : m_badges)
+        badge->deleteLater();
+    m_badges.clear();
 
     // The question text stays at index 0. Starting the walk at index 1 is what
     // keeps it in the layout: re-adding it inside the loop would make takeAt
@@ -160,6 +187,22 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         control->setToolTip(answerHint.isEmpty()
                                 ? QObject::tr("Antwort %1").arg(position + 1)
                                 : answerHint);
+        // Der Buchstabe steht links vor der Auswahl und nicht im Text der
+        // Antwort: eine Antwort, die selbst mit "A." beginnt, oder eine mit
+        // einem Bild, vertrage keinen zusaetzlichen Anhang am Text. So
+        // benennt er jede Antwort gleichermassen, auch die ohne Text.
+        auto *badge = new QLabel(row);
+        badge->setFixedSize(24, 24);
+        badge->setAlignment(Qt::AlignCenter);
+        badge->setText(QString(QChar(QLatin1Char('A').unicode() + position)));
+        // Ueber die Palette statt ueber feste Farben, sonst waere das Kästchen
+        // in einem dunklen Fenster ein heller Fleck.
+        badge->setStyleSheet(QStringLiteral(
+            "QLabel { border: 1px solid palette(mid); border-radius: 4px;"
+            " padding: 0px; font-weight: bold; }"));
+        rowLayout->addWidget(badge, 0, Qt::AlignTop);
+        m_badges.append(badge);
+
         rowLayout->addWidget(control, 0, Qt::AlignTop);
         if (auto *radio = qobject_cast<QRadioButton *>(control))
             group->addButton(radio, position);
@@ -235,6 +278,22 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         });
     }
 
+    // Die ganze Zeile faerbt sich mit der Auswahl, nicht nur der Punkt links.
+    // Ein Klick auf den Antworttext soll als Treffer gelten - bei einer
+    // mehrzeiligen Antwort ist der Punkt winzig daneben, und das Bild einer
+    // Bildantwort hat gar keinen.
+    const auto zeilenFarben = [this] {
+        for (int position = 0; position < m_controls.size(); ++position) {
+            QWidget *row = m_controls.at(position)->parentWidget();
+            if (m_controls.at(position)->isChecked())
+                tintRow(row, QColor(AUSWAHL_R, AUSWAHL_G, AUSWAHL_B));
+            else
+                untintRow(row);
+        }
+    };
+    for (QAbstractButton *control : std::as_const(m_controls))
+        connect(control, &QAbstractButton::toggled, this, zeilenFarben);
+
     // The rows were built after the widget became visible, so the layout has
     // to be activated explicitly, otherwise they stay invisible.
     m_layout->activate();
@@ -281,6 +340,14 @@ void AnswerView::reveal(int correctPosition, int selectedPosition)
             tintRow(row, QColor(0xfb, 0xdd, 0xdd));
         }
     }
+}
+
+QStringList AnswerView::badges() const
+{
+    QStringList briefe;
+    for (QLabel *badge : m_badges)
+        briefe.append(badge->text());
+    return briefe;
 }
 
 void AnswerView::setAnswersEnabled(bool enabled)

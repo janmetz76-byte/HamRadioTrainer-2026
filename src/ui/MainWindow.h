@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -20,6 +20,7 @@ class QButtonGroup;
 class QStackedWidget;
 class QDockWidget;
 class QRadioButton;
+class QAction;
 class QLabel;
 class QPlainTextEdit;
 class QTreeWidget;
@@ -29,6 +30,7 @@ namespace hrt {
 class CatalogView;
 class ExamWidget;
 class LearningWidget;
+class StatisticsWidget;
 class ValidationReport;
 } // namespace hrt
 
@@ -74,6 +76,14 @@ private:
     void buildUi();
     void selectView(int index);
     void updateStatus();
+    /// Schaltet die Eintraege des Menüs "Prüfbericht" scharf oder blass.
+    void updateReportActions();
+    /// Schreibt Frage und Sollstand in den Bericht. Der Validator sieht nur,
+    /// ob ein Katalog benutzbar ist; der Sollstand sagt, ob er noch der
+    /// ausgelieferte ist.
+    void refreshReport(const QVector<CatalogIssue> &validatorIssues);
+    /// Fragt nach dem Archivverzeichnis und importiert daraus die Kataloge.
+    void updateCatalog();
     /// Fills the validation report. Errors keep blocking with a modal dialog,
     /// because an unusable catalog must not be used by accident. Warnings do
     /// not: they are collected in the dock and merely announced.
@@ -83,6 +93,7 @@ private:
     QString m_catalogPath;
     ExamWidget *m_exam = nullptr;
     LearningWidget *m_learning = nullptr;
+    StatisticsWidget *m_statistics = nullptr;
     ProgressStore m_progressStore{ProgressStore(QString())};
     CatalogView *m_catalogView = nullptr;
     QList<QWidget *> m_views;
@@ -93,6 +104,12 @@ private:
     QDate m_examDate;
     QDockWidget *m_reportDock = nullptr;
     ValidationReport *m_report = nullptr;
+    /// Der Wegweiser des Docks, im Menü "Prüfbericht" aufgehängt.
+    QAction *m_showReportAction = nullptr;
+    QAction *m_recheckAction = nullptr;
+    QAction *m_copyReportAction = nullptr;
+    /// Import der Kataloge aus dem Archiv der Bundesnetzagentur.
+    QAction *m_updateAction = nullptr;
 };
 
 } // namespace hrt

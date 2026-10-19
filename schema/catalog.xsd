@@ -54,7 +54,10 @@
              "DL-DE-BY-2.0". Required whenever the catalog derives from an
              external source, because attribution is a licence condition. -->
         <xs:element name="license"     type="xs:string" minOccurs="0"/>
-        <!-- Mandatory source notice, verbatim, when "license" is set. -->
+        <!-- The same licence in words, as the publisher names it. -->
+        <xs:element name="licenseName" type="xs:string" minOccurs="0"/>
+        <!-- Mandatory source notice, verbatim, when "license" is set. Names
+             the work and where it came from. -->
         <xs:element name="attribution" type="xs:string" minOccurs="0"/>
         <!-- True as soon as anybody edited the catalog after the import.
              Attribution licences require that changes are indicated. -->

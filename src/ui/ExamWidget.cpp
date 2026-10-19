@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -19,6 +19,8 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPainter>
+#include "AppIcons.h"
+
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
@@ -79,7 +81,8 @@ void ExamWidget::buildUi()
     auto *layout = new QVBoxLayout(this);
 
     auto *startRow = new QHBoxLayout;
-    m_startExam = new QPushButton(tr("Prüfung starten"), this);
+    m_startExam = new QPushButton(AppIcons::get(QStringLiteral("play")),
+                                  tr("Prüfung starten"), this);
     m_startExam->setToolTip(tr("25 Fragen je Prüfungsteil, bestanden ab 19 Punkten, "
                                "45 Minuten je Teil, 60 Minuten für Klasse A."));
     connect(m_startExam, &QPushButton::clicked, this, &ExamWidget::startExam);
@@ -90,7 +93,8 @@ void ExamWidget::buildUi()
     trainingCount->setRange(1, 200);
     trainingCount->setValue(25);
     startRow->addWidget(trainingCount);
-    m_startTraining = new QPushButton(tr("Üben"), this);
+    m_startTraining = new QPushButton(AppIcons::get(QStringLiteral("view-learn")),
+                                      tr("Üben"), this);
     connect(m_startTraining, &QPushButton::clicked, this,
             [this, trainingCount] { startTraining(trainingCount->value()); });
     startRow->addWidget(m_startTraining);
@@ -125,16 +129,18 @@ void ExamWidget::buildUi()
     layout->addWidget(m_progress);
 
     auto *navRow = new QHBoxLayout;
-    m_back = new QPushButton(tr("Zurück"), this);
+    m_back = new QPushButton(AppIcons::get(QStringLiteral("back")), tr("Zurück"), this);
     connect(m_back, &QPushButton::clicked, this, &ExamWidget::goBack);
     navRow->addWidget(m_back);
 
-    m_next = new QPushButton(tr("Nächste unbeantwortete Frage"), this);
+    m_next = new QPushButton(AppIcons::get(QStringLiteral("skip")),
+                             tr("Nächste unbeantwortete Frage"), this);
     connect(m_next, &QPushButton::clicked, this, &ExamWidget::goToNextUnanswered);
     navRow->addWidget(m_next);
 
     navRow->addStretch(1);
-    m_finish = new QPushButton(tr("Auswerten"), this);
+    m_finish = new QPushButton(AppIcons::get(QStringLiteral("evaluate")),
+                               tr("Auswerten"), this);
     connect(m_finish, &QPushButton::clicked, this, &ExamWidget::finishExam);
     navRow->addWidget(m_finish);
     layout->addLayout(navRow);

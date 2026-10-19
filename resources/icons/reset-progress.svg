@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <title>reset-progress</title>
+  <g fill="none" stroke="#2f3437" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path  d="M4.4 9.4 A8.2 8.2 0 1 1 4 13.6"/>
+        <path  d="M4.4 4.6 v4.8 h4.8"/>
+        <path  d="M9.2 19.6 v-3.8 M12 19.6 v-6.2 M14.8 19.6 v-4.6"/>
+    
+  </g>
+</svg>

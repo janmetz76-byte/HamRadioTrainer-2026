@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Jan DC6DX and HamRadioTrainer 2026 contributors
+// Copyright (C) 2026 Jan - DC6DX and HamRadioTrainer 2026 contributors
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     parser.setApplicationDescription(
         QStringLiteral("HamRadioTrainer 2026 — Lern- und Prüfungstrainer für den "
-                       "Amateurfunk. Neu aufgebaut von Jan DC6DX."));
+                       "Amateurfunk. Neu aufgebaut von Jan - DC6DX."));
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument(
