@@ -125,6 +125,7 @@ jobs:
           path: |
             build/*.deb
             build/*.rpm
+          retention-days: 7
 
   windows:
     name: Windows Installer
@@ -178,3 +179,4 @@ jobs:
         with:
           name: windows-installer
           path: build/*.exe
+          retention-days: 7
