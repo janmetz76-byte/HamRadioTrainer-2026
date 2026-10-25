@@ -166,6 +166,13 @@ void CatalogView::makeColumnsAdjustable()
     connect(m_right, &QSplitter::splitterMoved, this, [this](int, int) { saveLayout(); });
 }
 
+void CatalogView::setCompact(bool compact)
+{
+    // Schmal stehen Kapitelbaum und Fragen untereinander. Nebeneinander
+    // blieben auf dem Handy fuer beide nur ein paar Buchstaben Breite.
+    m_columns->setOrientation(compact ? Qt::Vertical : Qt::Horizontal);
+}
+
 void CatalogView::saveLayout()
 {
     // Solange die Ansicht aufgebaut wird, schreibt sie ihren eigenen

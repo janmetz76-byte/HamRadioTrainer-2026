@@ -9,6 +9,7 @@
 #include "core/CatalogXml.h"
 #include "exam/PaperBuilder.h"
 #include "learning/Scheduler.h"
+#include "learning/StudySession.h"
 
 #include <QHash>
 #include <QSet>
@@ -74,6 +75,8 @@ class SchedulerTest : public QObject
     Q_OBJECT
 
 private slots:
+    void eachRoundStartsSomewhereElse();
+    void theExamDrawsLearnedQuestionsToo();
     void fullExamReproducesTheOfficialPaper();
     void trainingPaperIsNotAFullExam();
     void newQuestionsAreAskedFirst();
@@ -289,6 +292,111 @@ void SchedulerTest::answerOrderCanBeOverridden()
 /// Amtsblatt-Verfügung 29/2024: 25 questions per Prüfungsteil, passed at 19
 /// points per Prüfungsteil, six wrong answers tolerated per Prüfungsteil, and
 /// 45 minutes per sheet with 60 for class A.
+namespace {
+
+Catalog shippedCatalog(const char *file)
+{
+    Catalog catalog;
+    QString error;
+    const QString path = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs/") + QString::fromLatin1(file);
+    if (!CatalogXml::load(path, &catalog, &error))
+        qFatal("Katalog %s nicht lesbar: %s", file, qPrintable(error));
+    return catalog;
+}
+
+} // namespace
+
+void SchedulerTest::eachRoundStartsSomewhereElse()
+{
+    // Bei einem neuen Katalog sind alle Fragen gleich dringend. Frueher begann
+    // dann jede Runde mit VA101, VA102, ... und bestand nur aus Vorschriften.
+    const Catalog catalog = shippedCatalog("de-amateurfunk-N.xml");
+    Scheduler scheduler;
+    StudyOptions options;
+    options.maxQuestions = 20;
+
+    options.shuffleSeed = 11;
+    const QStringList first = StudySession(catalog, &scheduler, options).plan();
+    options.shuffleSeed = 4711;
+    const QStringList second = StudySession(catalog, &scheduler, options).plan();
+    QCOMPARE(first.size(), 20);
+    QVERIFY2(first != second, "zwei Runden mit verschiedenem Zufall sind gleich");
+
+    // Die Pruefungsteile sind gemischt, nicht nacheinander abgearbeitet.
+    QSet<QChar> parts;
+    for (const QString &id : first)
+        parts.insert(id.at(0));
+    QVERIFY2(parts.size() >= 2, qPrintable(first.join(QLatin1Char(' '))));
+
+    // Derselbe Zufall ergibt dieselbe Runde, ohne Zufall bleibt sie fest.
+    options.shuffleSeed = 11;
+    QCOMPARE(StudySession(catalog, &scheduler, options).plan(), first);
+    options.shuffleSeed = 0;
+    QCOMPARE(StudySession(catalog, &scheduler, options).plan(),
+             StudySession(catalog, &scheduler, options).plan());
+
+    // Die Prioritaet bleibt: gemischt wird nur unter gleich dringenden
+    // Fragen. Eine gefestigte Frage steht hinter allen neuen.
+    QuestionState mastered;
+    mastered.questionId = first.first();
+    mastered.timesAnswered = mastered.timesCorrect = 6;
+    mastered.box = Scheduler::MaxBox;
+    mastered.confidence = Confidence::Certain;
+    mastered.lastSeen = QDate::currentDate();
+    mastered.dueOn = QDate::currentDate().addDays(35);
+    Scheduler withMastered({mastered});
+    options.shuffleSeed = 11;
+    options.maxQuestions = 0;
+    const QStringList all = StudySession(catalog, &withMastered, options).plan();
+    QCOMPARE(all.last(), mastered.questionId);
+}
+
+void SchedulerTest::theExamDrawsLearnedQuestionsToo()
+{
+    // Die Bundesnetzagentur zieht gleichmaessig. Ist die Haelfte von Teil V
+    // gefestigt, muss sie auch rund die Haelfte der 25 Fragen stellen -
+    // nach Lernstand gewichtet waren es fast keine.
+    const Catalog catalog = shippedCatalog("de-amateurfunk-N.xml");
+    QVector<QuestionState> states;
+    QSet<QString> learned;
+    const QVector<const Question *> partV = [&] {
+        QVector<const Question *> list;
+        for (const Section &section : catalog.parts.first().sections)
+            for (const Question *question : section.questions())
+                if (question->isActive())
+                    list.append(question);
+        return list;
+    }();
+    for (int i = 0; i < partV.size(); i += 2) {
+        QuestionState state;
+        state.questionId = partV.at(i)->id;
+        state.timesAnswered = state.timesCorrect = 6;
+        state.box = Scheduler::MaxBox;
+        state.confidence = Confidence::Certain;
+        state.lastSeen = QDate::currentDate();
+        state.dueOn = QDate::currentDate().addDays(35);
+        states.append(state);
+        learned.insert(state.questionId);
+    }
+    const Scheduler scheduler(states);
+
+    int drawnLearned = 0;
+    int drawnV = 0;
+    for (quint32 seed = 1; seed <= 8; ++seed) {
+        const ExamPaper paper =
+            PaperBuilder::build(catalog, scheduler, PaperBuilder::examOptions(catalog), seed);
+        for (const PaperQuestion &question : paper.questions) {
+            if (question.partLetter != QStringLiteral("V"))
+                continue;
+            ++drawnV;
+            drawnLearned += learned.contains(question.questionId) ? 1 : 0;
+        }
+    }
+    QCOMPARE(drawnV, 8 * 25);
+    // Erwartet sind rund 100 von 200; gewichtet waeren es eine Handvoll.
+    QVERIFY2(drawnLearned > 60 && drawnLearned < 140, qPrintable(QString::number(drawnLearned)));
+}
+
 void SchedulerTest::fullExamReproducesTheOfficialPaper()
 {
     const QString base = QStringLiteral(HRT_SOURCE_DIR "/data/catalogs");

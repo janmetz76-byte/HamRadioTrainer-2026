@@ -4,6 +4,8 @@
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 #include "AnswerView.h"
+#include "CatalogView.h"
+#include "ExamWidget.h"
 #include "LearningWidget.h"
 #include "MainWindow.h"
 #include "StartupDialog.h"
@@ -206,6 +208,7 @@ private slots:
     void choosingToStartOverDropsTheLearningProgress();
     void whatWasLearnedSurvivesARestart();
     void anAscentLearnsOnlyItsOwnParts();
+    void everyViewFitsAPhone();
     void theHelpNamesTheSourceAndItsLicence();
     void theSidebarCarriesItsNameAndItsGroups();
     void theSidebarCanBeFoldedAway();
@@ -741,6 +744,50 @@ void StartupFlowTest::anAscentLearnsOnlyItsOwnParts()
     QVERIFY(!plan.isEmpty());
     for (const QString &id : plan)
         QVERIFY2(id.startsWith(QLatin1Char('E')), qPrintable(id));
+}
+
+void StartupFlowTest::everyViewFitsAPhone()
+{
+    // Ein Handy im Hochformat ist rund 411 Pixel breit, davon gehen 64 an die
+    // Ansichtsleiste. Der Stapel der Ansichten ist so breit wie seine
+    // breiteste Seite - eine einzige zu breite Ansicht schob unter Android
+    // jede andere mit ueber den Bildschirmrand.
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+    settings.setValue(QStringLiteral("startup/done"), true);
+    AssistantCloser closer;
+    MainWindow window;
+    window.openInitialCatalog();
+    closer.stop();
+
+    auto *learning = window.findChild<hrt::LearningWidget *>();
+    auto *exam = window.findChild<hrt::ExamWidget *>();
+    auto *catalog = window.findChild<hrt::CatalogView *>();
+    QVERIFY(learning && exam && catalog);
+    learning->setCompact(true);
+    exam->setCompact(true);
+    catalog->setCompact(true);
+
+    auto *stack = window.findChild<QStackedWidget *>();
+    QVERIFY(stack);
+    for (int i = 0; i < stack->count(); ++i) {
+        QWidget *view = stack->widget(i);
+        QVERIFY2(view->minimumSizeHint().width() <= 340,
+                 qPrintable(QStringLiteral("%1 braucht %2 Pixel")
+                                .arg(QString::fromLatin1(view->metaObject()->className()))
+                                .arg(view->minimumSizeHint().width())));
+    }
+
+    // Auch waehrend einer Runde und einer Pruefung.
+    for (QPushButton *button : learning->findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("Runde starten"))
+            button->click();
+    }
+    QVERIFY(exam->startExam());
+    QVERIFY2(learning->minimumSizeHint().width() <= 340,
+             qPrintable(QString::number(learning->minimumSizeHint().width())));
+    QVERIFY2(exam->minimumSizeHint().width() <= 340,
+             qPrintable(QString::number(exam->minimumSizeHint().width())));
 }
 
 void StartupFlowTest::theHelpNamesTheSourceAndItsLicence()

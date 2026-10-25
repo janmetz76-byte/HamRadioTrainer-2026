@@ -39,6 +39,9 @@ class CatalogView : public QWidget
 public:
     explicit CatalogView(QWidget *parent = nullptr);
 
+    /// Narrow layout: chapter tree above the questions instead of beside them.
+    void setCompact(bool compact);
+
     void setCatalog(const Catalog *catalog, const QString &catalogPath);
     void setProgress(const QVector<QuestionState> &states);
 

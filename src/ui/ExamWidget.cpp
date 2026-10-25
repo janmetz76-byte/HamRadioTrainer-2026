@@ -16,6 +16,7 @@
 #include <QButtonGroup>
 #include <QDir>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -81,26 +82,22 @@ void ExamWidget::buildUi()
 {
     auto *layout = new QVBoxLayout(this);
 
-    auto *startRow = new QHBoxLayout;
+    m_startGrid = new QGridLayout;
     m_startExam = new QPushButton(AppIcons::get(QStringLiteral("play")),
                                   tr("Prüfung starten"), this);
     m_startExam->setToolTip(tr("25 Fragen je Prüfungsteil, bestanden ab 19 Punkten, "
                                "45 Minuten je Teil, 60 Minuten für Klasse A."));
     connect(m_startExam, &QPushButton::clicked, this, &ExamWidget::startExam);
-    startRow->addWidget(m_startExam);
 
-    startRow->addWidget(new QLabel(tr("Training:"), this));
-    auto *trainingCount = new QSpinBox(this);
+    m_trainingLabel = new QLabel(tr("Training:"), this);
+    auto *trainingCount = m_trainingCount = new QSpinBox(this);
     trainingCount->setRange(1, 200);
     trainingCount->setValue(25);
-    startRow->addWidget(trainingCount);
     m_startTraining = new QPushButton(AppIcons::get(QStringLiteral("view-learn")),
                                       tr("Üben"), this);
     connect(m_startTraining, &QPushButton::clicked, this,
             [this, trainingCount] { startTraining(trainingCount->value()); });
-    startRow->addWidget(m_startTraining);
 
-    startRow->addStretch(1);
     m_timerLabel = new QLabel(this);
     QFont timerFont = m_timerLabel->font();
     timerFont.setBold(true);
@@ -111,10 +108,12 @@ void ExamWidget::buildUi()
     // clipped to a few pixels while it counts.
     m_timerLabel->setMinimumWidth(
         QFontMetrics(timerFont).horizontalAdvance(tr("Restzeit 00:00")) + 8);
-    startRow->addWidget(m_timerLabel);
-    layout->addLayout(startRow);
+    layout->addLayout(m_startGrid);
 
     m_header = new QLabel(this);
+    // Teil, Fragennummer und Bestehensgrenze sind zusammen laenger als ein
+    // Handy breit ist.
+    m_header->setWordWrap(true);
     QFont headerFont = m_header->font();
     headerFont.setBold(true);
     m_header->setFont(headerFont);
@@ -129,22 +128,19 @@ void ExamWidget::buildUi()
     m_progress = new QLabel(this);
     layout->addWidget(m_progress);
 
-    auto *navRow = new QHBoxLayout;
+    m_navGrid = new QGridLayout;
     m_back = new QPushButton(AppIcons::get(QStringLiteral("back")), tr("Zurück"), this);
     connect(m_back, &QPushButton::clicked, this, &ExamWidget::goBack);
-    navRow->addWidget(m_back);
 
     m_next = new QPushButton(AppIcons::get(QStringLiteral("skip")),
                              tr("Nächste unbeantwortete Frage"), this);
     connect(m_next, &QPushButton::clicked, this, &ExamWidget::goToNextUnanswered);
-    navRow->addWidget(m_next);
 
-    navRow->addStretch(1);
     m_finish = new QPushButton(AppIcons::get(QStringLiteral("evaluate")),
                                tr("Auswerten"), this);
     connect(m_finish, &QPushButton::clicked, this, &ExamWidget::finishExam);
-    navRow->addWidget(m_finish);
-    layout->addLayout(navRow);
+    layout->addLayout(m_navGrid);
+    arrangeControls();
 
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
@@ -156,6 +152,59 @@ void ExamWidget::buildUi()
             updateNavigation();
         }
     });
+}
+
+void ExamWidget::setCompact(bool compact)
+{
+    if (compact == m_compact)
+        return;
+    m_compact = compact;
+    arrangeControls();
+}
+
+void ExamWidget::arrangeControls()
+{
+    // Breit je eine Zeile fuer Start und Navigation. Schmal - auf dem Handy
+    // im Hochformat - waere die Seite breiter als der Bildschirm und schoebe
+    // jede andere Ansicht mit ueber den Rand.
+    const auto clear = [](QGridLayout *grid) {
+        while (QLayoutItem *item = grid->takeAt(0))
+            delete item;
+        for (int column = 0; column < grid->columnCount(); ++column)
+            grid->setColumnStretch(column, 0);
+    };
+    clear(m_startGrid);
+    clear(m_navGrid);
+
+    if (m_compact) {
+        m_startGrid->addWidget(m_startExam, 0, 0, 1, 3);
+        m_startGrid->addWidget(m_trainingLabel, 1, 0);
+        m_startGrid->addWidget(m_trainingCount, 1, 1);
+        m_startGrid->addWidget(m_startTraining, 1, 2);
+        m_startGrid->addWidget(m_timerLabel, 2, 0, 1, 3);
+        m_startGrid->setColumnStretch(1, 1);
+
+        m_navGrid->addWidget(m_back, 0, 0);
+        m_navGrid->addWidget(m_finish, 0, 1);
+        m_navGrid->addWidget(m_next, 1, 0, 1, 2);
+    } else {
+        m_startGrid->addWidget(m_startExam, 0, 0);
+        m_startGrid->addWidget(m_trainingLabel, 0, 1);
+        m_startGrid->addWidget(m_trainingCount, 0, 2);
+        m_startGrid->addWidget(m_startTraining, 0, 3);
+        m_startGrid->setColumnStretch(4, 1);
+        m_startGrid->addWidget(m_timerLabel, 0, 5);
+
+        m_navGrid->addWidget(m_back, 0, 0);
+        m_navGrid->addWidget(m_next, 0, 1);
+        m_navGrid->setColumnStretch(2, 1);
+        m_navGrid->addWidget(m_finish, 0, 3);
+    }
+
+    // Auf dem Handy wird getippt, nicht gezielt geklickt.
+    const int height = m_compact ? 48 : 0;
+    for (QPushButton *button : {m_startExam, m_startTraining, m_back, m_next, m_finish})
+        button->setMinimumHeight(height);
 }
 
 void ExamWidget::setCatalog(const Catalog *catalog, const QString &catalogPath)

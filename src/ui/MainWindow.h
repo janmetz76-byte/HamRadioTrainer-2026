@@ -18,6 +18,8 @@
 #include <QVector>
 
 class QButtonGroup;
+class QResizeEvent;
+class QToolButton;
 class QStackedWidget;
 class QDockWidget;
 class QRadioButton;
@@ -67,7 +69,12 @@ public:
     void runStartupAssistant();
     void updateExamCountdown();
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
+    void arrangeRail();
+    void fitRailIntoSplitter();
     void loadProgress();
     void saveProgress();
     void applySelectedParts(const QSet<int> &parts);
@@ -100,6 +107,14 @@ private:
     CatalogView *m_catalogView = nullptr;
     QList<QWidget *> m_views;
     QButtonGroup *m_viewGroup = nullptr;
+    /// Die Ansichtsleiste und ihre Teile, die sich je nach Breite umstellen.
+    QWidget *m_rail = nullptr;
+    QWidget *m_railHeader = nullptr;
+    QWidget *m_railTitle = nullptr;
+    QWidget *m_railGroupTitle = nullptr;
+    QWidget *m_railButtons = nullptr;
+    QToolButton *m_railToggle = nullptr;
+    bool m_compact = false;
     QStackedWidget *m_viewStack = nullptr;
     QLabel *m_status = nullptr;
     QLabel *m_examDateLabel = nullptr;

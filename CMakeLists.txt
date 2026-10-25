@@ -26,9 +26,20 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Xml)
-find_package(Qt6 6.5 QUIET OPTIONAL_COMPONENTS Test Svg)
+find_package(Qt6 6.5 QUIET OPTIONAL_COMPONENTS Test Svg Quick QuickControls2)
 
 qt_standard_project_setup()
+# Android-Pfade in Zieleigenschaften als gueltiges JSON auswerten (Qt >= 6.6).
+if(QT_KNOWN_POLICY_QTP0002)
+    qt_policy(SET QTP0002 NEW)
+endif()
+# QML-Module unter /qt/qml/ ablegen, wie es loadFromModule erwartet.
+if(QT_KNOWN_POLICY_QTP0001)
+    qt_policy(SET QTP0001 NEW)
+endif()
+if(QT_KNOWN_POLICY_QTP0004)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 # Qt is LGPLv3; linking it into a GPLv3 application is compatible.
 add_library(hrt_core STATIC
@@ -40,6 +51,7 @@ add_library(hrt_core STATIC
     src/core/CatalogLocator.cpp
     src/core/CatalogImporter.cpp
     src/core/CatalogManifest.cpp
+    src/core/ExamPlan.cpp
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
     src/learning/LearningStatistics.cpp
@@ -110,13 +122,65 @@ target_link_libraries(hrt_app PUBLIC hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 # Das Icon steckt in der Programmdatei, damit der Explorer es ohne Umweg
 # anzeigt, und wird zusaetzlich neben die Datei gelegt, damit die
 # Windows-Werkzeuge und die NAS-Verpackung es finden.
-add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE src/main.cpp)
+# Die Handy-Oberflaeche (Qt Quick). Sie setzt auf denselben Kern wie die
+# Desktop-Oberflaeche; nur die Darstellung ist eine andere.
+function(hrt_add_mobile_ui target)
+    target_sources(${target} PRIVATE
+        src/mobile/Trainer.cpp src/mobile/Trainer.h
+        src/mobile/StudyRound.cpp src/mobile/StudyRound.h
+        src/mobile/ExamRound.cpp src/mobile/ExamRound.h)
+    target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/mobile)
+    target_link_libraries(${target} PRIVATE hrt_core Qt6::Quick Qt6::QuickControls2)
+    if(TARGET Qt6::Svg)
+        # Fuer die SVG-Bilder der Fragen in QML.
+        target_link_libraries(${target} PRIVATE Qt6::Svg)
+    endif()
+    qt_add_qml_module(${target}
+        URI HamRadioTrainerUi
+        VERSION 1.0
+        QML_FILES
+            src/mobile/qml/Main.qml
+            src/mobile/qml/SetupPage.qml
+            src/mobile/qml/DateChooser.qml
+            src/mobile/qml/StartPage.qml
+            src/mobile/qml/LearnPage.qml
+            src/mobile/qml/QuestionView.qml
+            src/mobile/qml/StatsPage.qml
+            src/mobile/qml/ExamPage.qml
+            src/mobile/qml/CatalogPage.qml)
+endfunction()
+
+if(ANDROID)
+    # Unter Android ist das Programm eine Bibliothek in einer APK; nur
+    # qt_add_executable legt dafuer das Ziel "apk" an. Die Oberflaeche ist
+    # dort die Handy-Oberflaeche: die Widgets sind fuer Maus und grosse
+    # Bildschirme gebaut und wirkten auf dem Handy abgeschnitten.
+    if(NOT TARGET Qt6::QuickControls2)
+        message(FATAL_ERROR "Fuer Android wird Qt Quick (qtdeclarative) benoetigt.")
+    endif()
+    qt_add_executable(HamRadioTrainer2026 src/mobile/main.cpp)
+    hrt_add_mobile_ui(HamRadioTrainer2026)
+    # Nur die Plugins, die die App braucht: kein QML-Debugging, kein TLS,
+    # keine Netzwerkerkennung, als Bildformat nur SVG. Jedes Plugin liegt
+    # unkomprimiert in der APK.
+    qt_import_plugins(HamRadioTrainer2026
+        INCLUDE_BY_TYPE imageformats Qt::QSvgPlugin
+        EXCLUDE_BY_TYPE qmltooling tls networkinformation)
+else()
+    add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE src/main.cpp)
+    target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_app hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
+
+    # Die Handy-Oberflaeche am Desktop in Handygroesse - zum Entwickeln, ohne
+    # jedes Mal eine APK zu bauen. Sie wird nicht installiert.
+    if(TARGET Qt6::QuickControls2)
+        qt_add_executable(hrt-mobile-preview src/mobile/main.cpp)
+        hrt_add_mobile_ui(hrt-mobile-preview)
+    endif()
+endif()
 
 if(WIN32)
     target_sources(HamRadioTrainer2026 PRIVATE resources/app.rc)
 endif()
-
-target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_app hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 
 if(MSVC)
     target_compile_options(HamRadioTrainer2026 PRIVATE /W4 /permissive-)
@@ -138,6 +202,31 @@ set_target_properties(HamRadioTrainer2026 PROPERTIES
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
 
+# Android: Die Kataloge und ihre Bilder reisen als Assets in der APK mit und
+# werden unter "assets:/catalogs" gefunden (CatalogLocator). Kopiert wird bei
+# jedem Bau, damit eine geaenderte Katalogdatei nicht erst nach einem neuen
+# Konfigurieren in der APK landet.
+if(ANDROID)
+    set(HRT_ANDROID_PACKAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/android-package")
+    # android/ traegt Manifest, App-Symbol und Startbildschirm
+    # (tools/android-icons.sh); die Kataloge kommen als Assets dazu.
+    add_custom_target(hrt_android_assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/android" "${HRT_ANDROID_PACKAGE_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${HRT_ANDROID_PACKAGE_DIR}/assets/catalogs"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/data/catalogs"
+                "${HRT_ANDROID_PACKAGE_DIR}/assets/catalogs"
+        COMMENT "Android-Paketquellen und Fragenkataloge bereitstellen")
+    add_dependencies(HamRadioTrainer2026 hrt_android_assets)
+    set_target_properties(HamRadioTrainer2026 PROPERTIES
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${HRT_ANDROID_PACKAGE_DIR}"
+        QT_ANDROID_PACKAGE_NAME "org.hamradiotrainer.hamradiotrainer2026"
+        QT_ANDROID_APP_NAME "HamRadioTrainer 2026"
+        QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
+        QT_ANDROID_VERSION_CODE 1)
+endif()
+
 # ---------------------------------------------------------------------------
 # Command line companion for catalog maintenance and CI
 # ---------------------------------------------------------------------------
@@ -158,7 +247,7 @@ add_executable(hrt-catalog-import tools/catalog-import.cpp)
 target_link_libraries(hrt-catalog-import PRIVATE hrt_core)
 install(TARGETS hrt-catalog-import RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-if(Qt6Test_FOUND)
+if(Qt6Test_FOUND AND NOT ANDROID)
     enable_testing()
     add_executable(tst_catalog tests/tst_catalog.cpp)
     target_link_libraries(tst_catalog PRIVATE hrt_core Qt6::Test)
@@ -239,7 +328,8 @@ endif()
 # ---------------------------------------------------------------------------
 install(TARGETS HamRadioTrainer2026
     BUNDLE  DESTINATION .
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # "catalog-manifest.json" gehoert dazu: es nennt den Sollstand der
 # ausgelieferten Kataloge. Ohne die Datei kann das installierte Programm nicht

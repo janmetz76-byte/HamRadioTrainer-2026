@@ -90,7 +90,9 @@ public:
         /// Ignore the due date and the recency penalty of the scheduler.
         bool reviewMode = false;
         /// Reproduce a real examination: draw the official question count of
-        /// every Prüfungsteil of the catalog and apply its limits.
+        /// every Prüfungsteil of the catalog and apply its limits. Every
+        /// question is equally likely, as at the Bundesnetzagentur; the
+        /// learning progress does not tilt the draw.
         bool examMode = false;
     };
 

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "core/Catalog.h"
+#include "core/ExamPlan.h"
 
 #include <QDate>
 #include <QDialog>
@@ -61,33 +62,15 @@ public:
     /// Oeffentlich, damit der Test denselben Weg nimmt wie der Knopf.
     void accept() override;
 
-    /// One way of coming to the examination, as Amtsblatt-Verfügung 29/2024
-    /// puts it.
-    struct Combination
+    /// The cases themselves live in the core (ExamPlan), so the phone
+    /// interface offers exactly the same choice.
+    using Combination = ExamCombination;
+    static QVector<int> partsForClass(const QString &examClass)
     {
-        QString id;          ///< stable key for the settings: "N", "N-E", ...
-        QString label;       ///< shown at the radio button
-        QString note;        ///< why the other parts are not needed
-        QString targetClass; ///< class the certificate is applied for
-        QVector<int> parts;  ///< indexes into the catalog's part list
-        bool ascent = false; ///< an earlier certificate is credited
-    };
-
-    /// The parts needed for a full examination of the given class, without
-    /// any earlier certificate being credited.
-    static QVector<int> partsForClass(const QString &examClass);
-
-    /// All six cases the regulation describes: three examinations from
-    /// scratch and three ascents.
-    ///
-    /// 7.3 der Verfuegung laesst bereits bestandene Frageboegen weg: wer die
-    /// Klasse N hat, muss fuer die Klasse E nur noch E beantworten, wer die
-    /// Klasse N hat, fuer die Klasse A noch E und A, und wer die Klasse E
-    /// hat, fuer die Klasse A nur noch A.
-    static QVector<Combination> combinations();
-
-    /// Readable name of a Prüfungsteil, by its index.
-    static QString partName(int part);
+        return hrt::partsForClass(examClass);
+    }
+    static QVector<Combination> combinations() { return examCombinations(); }
+    static QString partName(int part) { return examPartName(part); }
 
 private:
     struct CatalogInfo

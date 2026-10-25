@@ -41,6 +41,10 @@ QStringList CatalogLocator::searchDirectories()
         const QString installed =
             QDir::cleanPath(QDir(applicationDirectory).filePath(QStringLiteral("../") + relative));
         directories << QDir(installed).filePath(QStringLiteral("catalogs")) << installed;
+#ifdef Q_OS_ANDROID
+        // In der APK liegen die Kataloge als Assets, nicht neben dem Programm.
+        directories << QStringLiteral("assets:/catalogs");
+#endif
 #ifdef Q_OS_MACOS
         // Inside an application bundle the catalogs live next to the bundle.
         directories << QDir(applicationDirectory).filePath(QStringLiteral("../Resources/catalogs"));

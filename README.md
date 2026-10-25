@@ -84,6 +84,26 @@ stellt in `dist-win/` einen portablen Ordner mit allen benötigten DLLs und
 Qt-Plugins zusammen, zusätzlich als `HamRadioTrainer2026-windows-x64.zip`.
 Einzelschritte: `setup`, `build`, `deploy`.
 
+### Android-App
+
+```sh
+sudo pacman -S --needed qt6-base qt6-svg qt6-declarative 7zip
+tools/android-build.sh                 # APK für Handys (arm64-v8a)
+tools/android-build.sh install         # per USB-Debugging aufs Handy
+HRT_ANDROID_ABI=x86_64 tools/android-build.sh   # für den Emulator
+```
+
+Unter Android läuft eine eigene Oberfläche mit Qt Quick (`src/mobile/`) auf
+demselben Kern wie die Desktop-Version: gleiche Lernregeln, gleiche
+Prüfungsauswertung, gleiche Fortschrittsdatei. Voraussetzung sind Android SDK
+mit NDK und JDK 17. Das Skript lädt Qt für Android in der Version des Host-Qt.
+Die APK ist mit dem Debug-Schlüssel signiert und damit für eigene Geräte
+gedacht. App-Symbol und Startbildschirm in `android/res/` erzeugt
+`tools/android-icons.sh` aus `resources/icons/app.svg`.
+
+Am Desktop lässt sich die Handy-Oberfläche als `hrt-mobile-preview` in
+Handygröße starten.
+
 ## Fragenkataloge
 
 ### Format

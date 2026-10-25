@@ -29,6 +29,9 @@ struct StudyOptions
     /// Off by default: when a question is new anyway it is not worth asking
     /// whether it was due.
     bool includeFresh = true;
+    /// Mixes questions of equal priority, so that rounds differ. 0 keeps a
+    /// fixed order.
+    quint32 shuffleSeed = 0;
 };
 
 /// Plans and records a practice round.

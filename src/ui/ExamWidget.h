@@ -16,9 +16,11 @@
 
 #include <optional>
 
+class QGridLayout;
 class QLabel;
 class QPushButton;
 class QRadioButton;
+class QSpinBox;
 class QTimer;
 class QVBoxLayout;
 
@@ -59,6 +61,10 @@ public:
     /// An empty set means "all parts", which is what a learner gets who never
     /// used the start assistant.
     void setSelectedParts(const QSet<int> &parts);
+
+    /// Narrow layout for a phone in portrait: start and navigation controls
+    /// are stacked instead of sharing one line.
+    void setCompact(bool compact);
     QSet<int> selectedParts() const { return m_selectedParts; }
     /// A training paper of the given length, without pass marks.
     bool startTraining(int questionCount);
@@ -82,6 +88,7 @@ private slots:
     void tick();
 
 private:
+    void arrangeControls();
     void buildUi();
     void updateHeader();
     void updateNavigation();
@@ -105,6 +112,11 @@ private:
     QPushButton *m_startExam = nullptr;
     QPushButton *m_startTraining = nullptr;
     QSet<int> m_selectedParts;
+    bool m_compact = false;
+    QGridLayout *m_startGrid = nullptr;
+    QGridLayout *m_navGrid = nullptr;
+    QLabel *m_trainingLabel = nullptr;
+    QSpinBox *m_trainingCount = nullptr;
     QPushButton *m_back = nullptr;
     QPushButton *m_next = nullptr;
     QPushButton *m_finish = nullptr;

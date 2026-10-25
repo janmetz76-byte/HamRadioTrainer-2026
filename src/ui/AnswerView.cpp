@@ -336,7 +336,9 @@ void AnswerView::reveal(int correctPosition, int selectedPosition)
             tintRow(row, QColor(0xdd, 0xf5, 0xdd));
         } else if (position == selectedPosition) {
             if (auto *mark = m_marks.value(position)) {
-                mark->setText(QStringLiteral("✗"));
+                // "×" statt "✗": das Kreuz aus dem Dingbats-Block fehlt der
+                // Android-Systemschrift und erschien dort als leeres Kaestchen.
+                mark->setText(QStringLiteral("×"));
                 mark->show();
             }
             tintRow(row, QColor(0xfb, 0xdd, 0xdd));

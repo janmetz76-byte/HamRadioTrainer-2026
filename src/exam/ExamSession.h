@@ -62,6 +62,15 @@ struct ExamResult
     QStringList failedParts() const;
     /// Points still missing in the part that is closest to failing.
     int weakestShortfall() const;
+
+    /// Points a single failed part needs for the mündliche Nachprüfung.
+    static constexpr int kOralRetestMinimum = 17;
+    /// The Prüfungsteil that may be retested orally, empty when none.
+    ///
+    /// Amtsblatt-Verfügung 29/2024, 7.3: only when exactly one part missed its
+    /// pass mark, and that part still reached 17 of 25 points. Failing two
+    /// parts, or one part by more, leaves only the written repetition.
+    QString oralRetestPart() const;
 };
 
 /// One exam paper in progress.

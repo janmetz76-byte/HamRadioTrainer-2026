@@ -14,6 +14,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QFont>
 #include <QHBoxLayout>
@@ -194,7 +195,7 @@ LearningWidget::LearningWidget(QWidget *parent)
 
     // Wer "Ordner 1 bis 3" nicht kennt, kann die Anzeige nicht deuten. Ein
     // Satz darueber kostet nichts und beantwortet die Frage.
-    auto *legend = new QLabel(
+    auto *legend = m_legend = new QLabel(
         tr("Lernstufen nach Leitner: eine sichere richtige Antwort hebt die Frage drei "
            "Stufen, eine unsichere eine Stufe, eine geratene gar nicht. Eine falsche Antwort "
            "drückt sie zwei Stufen zurück. Je höher die Stufe, desto seltener wird die Frage "
@@ -221,18 +222,16 @@ LearningWidget::LearningWidget(QWidget *parent)
     // derselben Zeile, damit die Leiste nicht allein steht.
     auto *options = new QWidget(this);
     options->setObjectName(QStringLiteral("uebungsrunde"));
-    auto *optionsLayout = new QHBoxLayout(options);
-    optionsLayout->addWidget(new QLabel(tr("Fragen:"), options));
+    m_options = options;
+    m_optionsGrid = new QGridLayout(options);
+    m_roundSizeLabel = new QLabel(tr("Fragen:"), options);
     m_roundSize = new QSpinBox(options);
     m_roundSize->setRange(1, 200);
     m_roundSize->setValue(20);
-    optionsLayout->addWidget(m_roundSize);
     m_onlyDue = new QCheckBox(tr("nur fällige"), options);
     m_onlyDue->setToolTip(tr("Nur Wiederholungen, deren Fälligkeit erreicht ist."));
-    optionsLayout->addWidget(m_onlyDue);
     m_onlyShaky = new QCheckBox(tr("nur wackelige"), options);
     m_onlyShaky->setToolTip(tr("Nur Fragen, die zuletzt falsch beantwortet oder geraten wurden."));
-    optionsLayout->addWidget(m_onlyShaky);
     // Wie im Trainer von 2015 abschaltbar: wer ohne Aufloesung durch die
     // Runde gehen will, erfaehrt erst am Ende, wie viele Antworten stimmten.
     m_showSolution = new QCheckBox(tr("Lösung nach jeder Antwort zeigen"), options);
@@ -247,14 +246,10 @@ LearningWidget::LearningWidget(QWidget *parent)
         QSettings settings;
         settings.setValue(QStringLiteral("learnview/showSolution"), on);
     });
-    optionsLayout->addWidget(m_showSolution);
-    optionsLayout->addWidget(new QLabel(tr("Prüfungsteil:"), options));
+    m_partLabel = new QLabel(tr("Prüfungsteil:"), options);
     m_partFilter = new QComboBox(options);
-    optionsLayout->addWidget(m_partFilter);
-    optionsLayout->addStretch(1);
     m_start = new QPushButton(AppIcons::get(QStringLiteral("play")),
                               tr("Runde starten"), options);
-    optionsLayout->addWidget(m_start);
     layout->addWidget(new SectionBar(tr("Übungsrunde"), this));
     layout->addWidget(options);
 
@@ -278,21 +273,18 @@ LearningWidget::LearningWidget(QWidget *parent)
     // would be treated like a question that was known. It is also what hands
     // the answer in: the learner judges their own answer before the solution
     // is shown, as in the 2015 trainer.
-    auto *confidenceRow = new QHBoxLayout;
-    confidenceRow->addWidget(new QLabel(tr("Wie sicher war die Antwort?"), this));
+    m_confidenceGrid = new QGridLayout;
+    m_confidenceLabel = new QLabel(tr("Wie sicher war die Antwort?"), this);
     m_confident = new QPushButton(AppIcons::get(QStringLiteral("confident")),
                                   tr("Sicher"), this);
     m_unsure = new QPushButton(AppIcons::get(QStringLiteral("unsure")),
                                tr("Unsicher"), this);
     m_guessing = new QPushButton(AppIcons::get(QStringLiteral("guessed")),
                                  tr("Geraten"), this);
-    for (QPushButton *button : {m_confident, m_unsure, m_guessing})
-        confidenceRow->addWidget(button);
-    confidenceRow->addStretch(1);
     m_nextQuestion = new QPushButton(AppIcons::get(QStringLiteral("next")),
                                      tr("Nächste Frage"), this);
-    confidenceRow->addWidget(m_nextQuestion);
-    layout->addLayout(confidenceRow);
+    layout->addLayout(m_confidenceGrid);
+    arrangeControls();
 
     connect(m_start, &QPushButton::clicked, this, &LearningWidget::startRound);
     connect(m_answers, &AnswerView::selected, this, &LearningWidget::onAnswerSelected);
@@ -308,6 +300,85 @@ LearningWidget::LearningWidget(QWidget *parent)
     });
 
     refresh();
+}
+
+void LearningWidget::setCompact(bool compact)
+{
+    if (compact == m_compact)
+        return;
+    m_compact = compact;
+    arrangeControls();
+    // Nur die Sichtbarkeit nachziehen, nicht showCurrent(): das liefe auch
+    // vor dem ersten Katalog und sperrte dann "Runde starten" fuer immer.
+    const bool running = m_session.has_value() && m_index < m_session->count();
+    m_options->setVisible(!running || !m_compact);
+}
+
+void LearningWidget::arrangeControls()
+{
+    // Breit steht alles in je einer Zeile. Schmal - auf dem Handy im
+    // Hochformat - waeren die Beschriftungen bis zur Unkenntlichkeit
+    // abgeschnitten ("Frag", "nu", "de s"); dort bekommt jede Einstellung
+    // ihre eigene Zeile und die Selbsteinschaetzung grosse Knoepfe.
+    const auto clear = [](QGridLayout *grid) {
+        while (QLayoutItem *item = grid->takeAt(0))
+            delete item;
+        for (int column = 0; column < grid->columnCount(); ++column)
+            grid->setColumnStretch(column, 0);
+    };
+    clear(m_optionsGrid);
+    clear(m_confidenceGrid);
+
+    if (m_compact) {
+        m_optionsGrid->addWidget(m_roundSizeLabel, 0, 0);
+        m_optionsGrid->addWidget(m_roundSize, 0, 1);
+        m_optionsGrid->addWidget(m_onlyDue, 1, 0, 1, 2);
+        m_optionsGrid->addWidget(m_onlyShaky, 2, 0, 1, 2);
+        m_optionsGrid->addWidget(m_showSolution, 3, 0, 1, 2);
+        m_optionsGrid->addWidget(m_partLabel, 4, 0);
+        m_optionsGrid->addWidget(m_partFilter, 4, 1);
+        m_optionsGrid->addWidget(m_start, 5, 0, 1, 2);
+        m_optionsGrid->setColumnStretch(1, 1);
+
+        m_confidenceGrid->addWidget(m_confidenceLabel, 0, 0, 1, 3);
+        m_confidenceGrid->addWidget(m_confident, 1, 0);
+        m_confidenceGrid->addWidget(m_unsure, 1, 1);
+        m_confidenceGrid->addWidget(m_guessing, 1, 2);
+        m_confidenceGrid->addWidget(m_nextQuestion, 2, 0, 1, 3);
+    } else {
+        int column = 0;
+        for (QWidget *widget : {static_cast<QWidget *>(m_roundSizeLabel),
+                                static_cast<QWidget *>(m_roundSize),
+                                static_cast<QWidget *>(m_onlyDue),
+                                static_cast<QWidget *>(m_onlyShaky),
+                                static_cast<QWidget *>(m_showSolution),
+                                static_cast<QWidget *>(m_partLabel),
+                                static_cast<QWidget *>(m_partFilter)})
+            m_optionsGrid->addWidget(widget, 0, column++);
+        m_optionsGrid->setColumnStretch(column++, 1);
+        m_optionsGrid->addWidget(m_start, 0, column);
+
+        column = 0;
+        for (QWidget *widget : {static_cast<QWidget *>(m_confidenceLabel),
+                                static_cast<QWidget *>(m_confident),
+                                static_cast<QWidget *>(m_unsure),
+                                static_cast<QWidget *>(m_guessing)})
+            m_confidenceGrid->addWidget(widget, 0, column++);
+        m_confidenceGrid->setColumnStretch(column++, 1);
+        m_confidenceGrid->addWidget(m_nextQuestion, 0, column);
+    }
+
+    // Lernstufen und Teiltabelle passen schmal weder in die Breite noch in die
+    // Hoehe; sie drueckten die Seite ueber den Bildschirmrand. Der Satz
+    // darueber bleibt, die Tabellen zeigt die Ansicht "Statistik" vollstaendig.
+    m_boxes->setVisible(!m_compact);
+    m_legend->setVisible(!m_compact);
+    m_parts->setVisible(!m_compact);
+
+    // Auf dem Handy wird getippt, nicht gezielt geklickt.
+    const int height = m_compact ? 48 : 0;
+    for (QPushButton *button : {m_start, m_confident, m_unsure, m_guessing, m_nextQuestion})
+        button->setMinimumHeight(height);
 }
 
 void LearningWidget::setCatalog(const Catalog *catalog, const QString &catalogPath)
@@ -456,7 +527,12 @@ void LearningWidget::startRound()
     if (!m_catalog)
         return;
 
-    StudySession session(*m_catalog, &m_scheduler, currentOptions());
+    // Ein Zufallswert je Runde: er mischt die Reihenfolge der Fragen gleicher
+    // Prioritaet und die Antworten. Nie 0, das hiesse "feste Reihenfolge".
+    const quint32 seed = QRandomGenerator::global()->bounded(1u, 0xffffffffu);
+    StudyOptions options = currentOptions();
+    options.shuffleSeed = seed;
+    StudySession session(*m_catalog, &m_scheduler, options);
     if (session.count() == 0) {
         m_progress->setText(tr("Zu dieser Auswahl gibt es nichts zu üben."));
         return;
@@ -465,7 +541,7 @@ void LearningWidget::startRound()
     m_session.emplace(std::move(session));
     m_index = 0;
     m_correct = 0;
-    m_seed = QRandomGenerator::global()->generate();
+    m_seed = seed;
     m_explanation->clear();
     showCurrent();
 }
@@ -475,6 +551,9 @@ void LearningWidget::showCurrent()
     const bool running = m_session.has_value() && m_index < m_session->count();
 
     m_overview->setVisible(!running);
+    // Schmal treten auch die Einstellungen der Runde zurueck; sie sind
+    // waehrend der Runde ohnehin gesperrt, und die Frage braucht den Platz.
+    m_options->setVisible(!running || !m_compact);
     m_start->setEnabled(m_catalog && !running);
     m_roundSize->setEnabled(!running);
     m_onlyDue->setEnabled(!running);

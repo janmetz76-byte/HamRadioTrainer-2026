@@ -19,6 +19,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QGridLayout;
 class QLabel;
 class QPushButton;
 class QSpinBox;
@@ -52,6 +53,10 @@ public:
     /// these; empty means the whole catalog.
     void setSelectedParts(const QSet<int> &parts);
 
+    /// Narrow layout for a phone in portrait: settings and self report are
+    /// stacked instead of sharing one line.
+    void setCompact(bool compact);
+
     /// Recomputes the figures from the stored progress.
     void refresh();
 
@@ -78,6 +83,7 @@ private:
     StudyOptions currentOptions() const;
     void refreshPartFilter();
     void updateSummary();
+    void arrangeControls();
 
     const Catalog *m_catalog = nullptr;
     QString m_catalogDir;
@@ -92,7 +98,15 @@ private:
     QString m_pendingQuestionId;
     int m_pendingCorrectPosition = -1;
 
+    bool m_compact = false;
     QWidget *m_overview = nullptr;
+    QWidget *m_options = nullptr;
+    QGridLayout *m_optionsGrid = nullptr;
+    QGridLayout *m_confidenceGrid = nullptr;
+    QLabel *m_roundSizeLabel = nullptr;
+    QLabel *m_partLabel = nullptr;
+    QLabel *m_confidenceLabel = nullptr;
+    QLabel *m_legend = nullptr;
     QLabel *m_summary = nullptr;
     QTableWidget *m_boxes = nullptr;
     QTableWidget *m_parts = nullptr;

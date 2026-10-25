@@ -151,7 +151,11 @@ ExamPaper PaperBuilder::build(const Catalog &catalog, const Scheduler &scheduler
                 if (!question->isActive())
                     continue;
                 pool.append(question);
-                weights->append(options.reviewMode
+                // Die Pruefungssimulation zieht wie die Bundesnetzagentur
+                // gleichmaessig aus dem ganzen Katalog. Nach dem Lernstand
+                // gewichtet kamen gelernte Fragen kaum noch vor, und das
+                // Ergebnis sagte wenig ueber die echte Pruefung.
+                weights->append(options.reviewMode || options.examMode
                                     ? 1.0
                                     : scheduler.weightFor(scheduler.stateFor(question->id)));
             }

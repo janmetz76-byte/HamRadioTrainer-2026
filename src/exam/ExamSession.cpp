@@ -20,6 +20,21 @@ QStringList ExamResult::failedParts() const
     return failed;
 }
 
+QString ExamResult::oralRetestPart() const
+{
+    const PartResult *failed = nullptr;
+    for (const PartResult &part : parts) {
+        if (part.passed())
+            continue;
+        if (failed)
+            return {};
+        failed = &part;
+    }
+    if (!failed || failed->achievedPoints < kOralRetestMinimum)
+        return {};
+    return failed->letter;
+}
+
 int ExamResult::weakestShortfall() const
 {
     int shortfall = 0;

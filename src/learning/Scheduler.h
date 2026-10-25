@@ -88,7 +88,12 @@ public:
 
     /// Questions sorted by descending weight. Used by the learner view to offer
     /// the most useful question first.
-    QVector<QString> questionsByPriority(const QStringList &candidateIds) const;
+    ///
+    /// Questions of equal weight - every never seen question, for instance -
+    /// are mixed by \a shuffleSeed, so each round starts somewhere else. With
+    /// a seed of 0 they keep the order of their ids, which tests rely on.
+    QVector<QString> questionsByPriority(const QStringList &candidateIds,
+                                         quint32 shuffleSeed = 0) const;
 
     /// Number of questions per Leitner box, for the statistics view.
     QVector<int> distribution() const;

@@ -4,6 +4,7 @@
 /dist/
 /dist-win/
 /HamRadioTrainer2026-windows-*.zip
+/HamRadioTrainer2026-android-*.apk
 /out/
 *.user
 

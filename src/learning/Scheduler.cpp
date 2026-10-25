@@ -148,23 +148,36 @@ double Scheduler::weightFor(const QuestionState &state) const
     return weight;
 }
 
-QVector<QString> Scheduler::questionsByPriority(const QStringList &candidateIds) const
+QVector<QString> Scheduler::questionsByPriority(const QStringList &candidateIds,
+                                                quint32 shuffleSeed) const
 {
-    QVector<QPair<double, QString>> scored;
+    struct Scored
+    {
+        double weight;
+        size_t mix;
+        QString id;
+    };
+    QVector<Scored> scored;
     scored.reserve(candidateIds.size());
-    for (const QString &id : candidateIds)
-        scored.append({weightFor(stateFor(id)), id});
+    for (const QString &id : candidateIds) {
+        // Gleich gewichtete Fragen nach einem je Runde anderen Schluessel:
+        // sonst begann jede Runde eines neuen Katalogs mit VA101, VA102, ...
+        const size_t mix = shuffleSeed != 0 ? qHash(id, size_t(shuffleSeed)) : 0;
+        scored.append({weightFor(stateFor(id)), mix, id});
+    }
 
-    std::sort(scored.begin(), scored.end(), [](const auto &lhs, const auto &rhs) {
-        if (lhs.first != rhs.first)
-            return lhs.first > rhs.first;
-        return lhs.second < rhs.second; // stable, reproducible
+    std::sort(scored.begin(), scored.end(), [](const Scored &lhs, const Scored &rhs) {
+        if (lhs.weight != rhs.weight)
+            return lhs.weight > rhs.weight;
+        if (lhs.mix != rhs.mix)
+            return lhs.mix < rhs.mix;
+        return lhs.id < rhs.id; // stable, reproducible
     });
 
     QVector<QString> ordered;
     ordered.reserve(scored.size());
-    for (const auto &entry : scored)
-        ordered.append(entry.second);
+    for (const Scored &entry : scored)
+        ordered.append(entry.id);
     return ordered;
 }
 

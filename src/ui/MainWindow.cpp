@@ -48,6 +48,7 @@
 #include <QStatusBar>
 #include <QTableWidget>
 #include <QTabWidget>
+#include <QResizeEvent>
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -172,6 +173,12 @@ void MainWindow::buildUi()
     quitAction->setShortcut(QKeySequence::Quit);
     connect(quitAction, &QAction::triggered, this, &QWidget::close);
 
+#ifdef Q_OS_ANDROID
+    // Android kennt keine Menueleiste am Fenster; die "native" Variante
+    // landete in einem Ueberlaufmenue, das die Qt-Aktivitaet gar nicht zeigt.
+    // Ohne diese Zeile waeren Assistent, Katalogwahl und Hilfe unerreichbar.
+    menuBar()->setNativeMenuBar(false);
+#endif
     QMenu *fileMenu = menuBar()->addMenu(tr("&Datei"));
     // Der Assistent ist nicht nur beim ersten Start nuetzlich: Wer sich
     // zwischenzeitlich fuer eine andere Klasse entscheidet, oeffnet ihn ueber
@@ -391,19 +398,14 @@ void MainWindow::buildUi()
     // ist, und wuerde dann in einen zerstoerten Stack-Zustand schreiben.
     // Der Knopf ist zudem der einzige, der ihn ohnehin kennt.
     einklappen->setCheckable(true);
-    connect(einklappen, &QToolButton::clicked, this, [rail, knopfBereich, gruppenKopf,
-                                                      kopfTitel, einklappen] {
-        const bool eingeklappt = einklappen->isChecked();
-        knopfBereich->setVisible(!eingeklappt);
-        gruppenKopf->setVisible(!eingeklappt);
-        kopfTitel->setVisible(!eingeklappt);
-        rail->setFixedWidth(eingeklappt ? 48 : 156);
-        einklappen->setIcon(AppIcons::get(eingeklappt ? QStringLiteral("expand")
-                                                      : QStringLiteral("collapse")));
-        einklappen->setToolTip(eingeklappt ? tr("Ansichtsleiste ausklappen")
-                                           : tr("Ansichtsleiste einklappen"));
-    });
-    rail->setFixedWidth(156);
+    m_rail = rail;
+    m_railHeader = kopf;
+    m_railTitle = kopfTitel;
+    m_railGroupTitle = gruppenKopf;
+    m_railButtons = knopfBereich;
+    m_railToggle = einklappen;
+    connect(einklappen, &QToolButton::clicked, this, [this] { arrangeRail(); });
+    arrangeRail();
 
     connect(m_viewGroup, &QButtonGroup::buttonClicked, this,
             [this](QAbstractButton *button) { selectView(m_viewGroup->id(button)); });
@@ -436,6 +438,9 @@ void MainWindow::buildUi()
     connect(m_exam, &ExamWidget::examFinished, this, &MainWindow::showResult);
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
+    // Die Statuszeile darf das Fenster nicht verbreitern: auf dem Handy ist
+    // sie laenger als der Bildschirm und wird dann eben abgeschnitten.
+    m_status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     statusBar()->addWidget(m_status, 1);
     m_examDateLabel = new QLabel(this);
     statusBar()->addPermanentWidget(m_examDateLabel);
@@ -513,9 +518,19 @@ void MainWindow::showResult(const ExamResult &result)
     if (!result.passed && !result.parts.isEmpty() && !result.failedParts().isEmpty()) {
         auto *hint = new QLabel(&dialog);
         hint->setWordWrap(true);
-        hint->setText(tr("Nicht bestanden: Prüfungsteil %1. Dieser Teil ist mündlich "
-                         "nachzuprüfen; die übrigen Teile müssen nicht wiederholt werden.")
-                          .arg(result.failedParts().join(QStringLiteral(", "))));
+        // Muendlich nachgeprueft wird nur ein einzelner, knapp verfehlter Teil
+        // (Verfuegung 7.3); sonst bleibt die schriftliche Wiederholung.
+        const QString oral = result.oralRetestPart();
+        hint->setText(!oral.isEmpty()
+                          ? tr("Nicht bestanden: Prüfungsteil %1. Mit mindestens %2 Punkten in "
+                               "nur diesem Teil ist eine mündliche Nachprüfung möglich; die "
+                               "übrigen Teile müssen nicht wiederholt werden.")
+                                .arg(oral)
+                                .arg(ExamResult::kOralRetestMinimum)
+                          : tr("Nicht bestanden: Prüfungsteil %1. Nicht bestandene Teile lassen "
+                               "sich innerhalb von 24 Monaten wiederholen; bestandene Teile "
+                               "bleiben gültig.")
+                                .arg(result.failedParts().join(QStringLiteral(", "))));
         layout->addWidget(hint);
     }
 
@@ -709,6 +724,72 @@ void MainWindow::runStartupAssistant()
     // Katalogansicht landet, muss sich noch einmal durchklicken, bis er
     // anfangen kann.
     selectView(kLearningView);
+}
+
+void MainWindow::arrangeRail()
+{
+    // Schmal - auf dem Handy im Hochformat - nimmt die Leiste mit Bild und
+    // Beschriftung fast die halbe Breite ein. Dort bleiben nur die Bilder,
+    // jedes gross genug zum Tippen; einklappen laesst sich die Leiste dann
+    // nicht, sonst waeren die Ansichten nur noch ueber Umwege erreichbar.
+    if (m_compact) {
+        m_railHeader->hide();
+        m_railGroupTitle->hide();
+        m_railButtons->show();
+        for (QAbstractButton *button : m_viewGroup->buttons()) {
+            auto *tool = static_cast<QToolButton *>(button);
+            tool->setToolButtonStyle(Qt::ToolButtonIconOnly);
+            tool->setMinimumSize(QSize(48, 56));
+        }
+        m_rail->setFixedWidth(64);
+        fitRailIntoSplitter();
+        return;
+    }
+
+    const bool eingeklappt = m_railToggle->isChecked();
+    m_railHeader->show();
+    m_railButtons->setVisible(!eingeklappt);
+    m_railGroupTitle->setVisible(!eingeklappt);
+    m_railTitle->setVisible(!eingeklappt);
+    for (QAbstractButton *button : m_viewGroup->buttons()) {
+        auto *tool = static_cast<QToolButton *>(button);
+        tool->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        tool->setMinimumSize(QSize(136, 86));
+    }
+    m_rail->setFixedWidth(eingeklappt ? 48 : 156);
+    m_railToggle->setIcon(AppIcons::get(eingeklappt ? QStringLiteral("expand")
+                                                    : QStringLiteral("collapse")));
+    m_railToggle->setToolTip(eingeklappt ? tr("Ansichtsleiste ausklappen")
+                                         : tr("Ansichtsleiste einklappen"));
+    fitRailIntoSplitter();
+}
+
+void MainWindow::fitRailIntoSplitter()
+{
+    // Der Teiler merkt sich seine Aufteilung. Ohne neue Groessen bliebe neben
+    // einer schmaler gewordenen Leiste eine leere Spalte stehen.
+    auto *splitter = qobject_cast<QSplitter *>(m_rail->parentWidget());
+    if (!splitter)
+        return;
+    splitter->setSizes({m_rail->maximumWidth(), qMax(1, splitter->width() - m_rail->maximumWidth())});
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    // Unter 720 Pixeln Breite - ein Handy im Hochformat - wechseln die
+    // Ansichten in ihre schmale Anordnung. Breiter bleibt alles beim Alten.
+    const bool compact = width() < 720;
+    if (compact == m_compact)
+        return;
+    m_compact = compact;
+    arrangeRail();
+    // Katalogangabe und Countdown passen schmal nicht nebeneinander und
+    // ueberlagerten sich. Der Countdown ist das, was man unterwegs sehen will.
+    m_status->setVisible(!compact);
+    m_learning->setCompact(compact);
+    m_catalogView->setCompact(compact);
+    m_exam->setCompact(compact);
 }
 
 void MainWindow::applySelectedParts(const QSet<int> &parts)

@@ -15,17 +15,15 @@ StudySession::StudySession(const Catalog &catalog, Scheduler *scheduler, StudyOp
 {
     const QDate today = QDate::currentDate();
 
+    // Alle gewaehlten Teile in einen Topf. Teil fuer Teil abgearbeitet bestand
+    // eine Runde eines neuen Katalogs nur aus Vorschriften.
+    QStringList candidates;
+    QStringList fresh;
     for (const Part &part : catalog.parts) {
         const QString letter = examPartLetter(part);
         if (!options.parts.isEmpty() && !options.parts.contains(letter))
             continue;
 
-        // With "only due", the repetitions have to come before the questions
-        // that were never seen. A fresh question is always offered, so a plain
-        // priority order would fill a short round entirely with new questions
-        // and the due ones would never be reached.
-        QStringList candidates;
-        QStringList fresh;
         for (const Section &section : part.sections) {
             for (const Question *question : section.questions()) {
                 if (!question->isActive())
@@ -51,17 +49,18 @@ StudySession::StudySession(const Catalog &catalog, Scheduler *scheduler, StudyOp
                 fresh.append(question->id);
             }
         }
+    }
 
-        if (candidates.isEmpty() && fresh.isEmpty())
-            continue;
-
-        if (options.onlyDue) {
-            m_plan.append(scheduler->questionsByPriority(candidates));
-            m_plan.append(scheduler->questionsByPriority(fresh));
-        } else {
-            // Shaky and new questions first, secure ones to the back.
-            m_plan.append(scheduler->questionsByPriority(candidates + fresh));
-        }
+    // With "only due", the repetitions have to come before the questions that
+    // were never seen. A fresh question is always offered, so a plain priority
+    // order would fill a short round entirely with new questions and the due
+    // ones would never be reached.
+    if (options.onlyDue) {
+        m_plan.append(scheduler->questionsByPriority(candidates, options.shuffleSeed));
+        m_plan.append(scheduler->questionsByPriority(fresh, options.shuffleSeed));
+    } else {
+        // Shaky and new questions first, secure ones to the back.
+        m_plan.append(scheduler->questionsByPriority(candidates + fresh, options.shuffleSeed));
     }
 
     if (options.maxQuestions > 0 && m_plan.size() > options.maxQuestions)

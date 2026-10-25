@@ -56,6 +56,7 @@ private slots:
     void aCompletePaperIsAnsweredCorrectly();
     void unansweredQuestionsCountAsWrong();
     void oneFailedPartFailsTheWholeExamination();
+    void onlyOneNarrowlyFailedPartGoesToTheOralRetest();
     void passMarkAppliesPerPartNotInTotal();
     void nextUnansweredVisitsEveryQuestionOnce();
     void invalidAnswerPositionsAreIgnored();
@@ -163,6 +164,53 @@ void ExamSessionTest::oneFailedPartFailsTheWholeExamination()
     QCOMPARE(result.parts.at(0).achievedPoints, 25);
     QCOMPARE(result.parts.at(1).achievedPoints, 25);
     QCOMPARE(result.parts.at(3).achievedPoints, 25);
+}
+
+void ExamSessionTest::onlyOneNarrowlyFailedPartGoesToTheOralRetest()
+{
+    // Verfuegung 7.3: muendlich nachgeprueft wird nur, wer in genau einem
+    // Teil die Mindestpunktzahl verfehlt, dort aber 17 von 25 erreicht.
+    const Catalog catalog = loadClassCatalog("de-amateurfunk-E.xml");
+
+    // Teil N mit 18 Punkten: Nachpruefung moeglich.
+    {
+        ExamSession session = fullExam(catalog, 99u);
+        QSet<int> wrong;
+        for (int i = 0; i < 7; ++i)
+            wrong.insert(50 + i);
+        answerAll(&session, wrong);
+        QCOMPARE(session.evaluate().oralRetestPart(), QStringLiteral("N"));
+    }
+    // Teil N mit 16 Punkten: zu weit daneben.
+    {
+        ExamSession session = fullExam(catalog, 99u);
+        QSet<int> wrong;
+        for (int i = 0; i < 9; ++i)
+            wrong.insert(50 + i);
+        answerAll(&session, wrong);
+        const ExamResult result = session.evaluate();
+        QCOMPARE(result.parts.at(2).achievedPoints, 16);
+        QVERIFY(result.oralRetestPart().isEmpty());
+    }
+    // Zwei Teile knapp verfehlt: keine Nachpruefung.
+    {
+        ExamSession session = fullExam(catalog, 99u);
+        QSet<int> wrong;
+        for (int i = 0; i < 7; ++i) {
+            wrong.insert(50 + i);
+            wrong.insert(75 + i);
+        }
+        answerAll(&session, wrong);
+        const ExamResult result = session.evaluate();
+        QCOMPARE(result.failedParts().size(), 2);
+        QVERIFY(result.oralRetestPart().isEmpty());
+    }
+    // Bestanden: nichts nachzupruefen.
+    {
+        ExamSession session = fullExam(catalog, 99u);
+        answerAll(&session, {});
+        QVERIFY(session.evaluate().oralRetestPart().isEmpty());
+    }
 }
 
 /// Six wrong answers per Prüfungsteil are the exact tolerance of the

@@ -98,6 +98,7 @@ private slots:
     void theSolutionWaitsForTheSelfReport();
     void aRoundGivesTheQuestionTheWholeHeight();
     void theSolutionCanBeSwitchedOff();
+    void aNarrowLayoutBeforeTheCatalogKeepsTheStartButton();
 };
 
 void LearningWidgetTest::initTestCase()
@@ -462,6 +463,21 @@ void LearningWidgetTest::theSolutionCanBeSwitchedOff()
             QVERIFY(!box->isChecked());
     }
     QSettings().remove(QStringLiteral("learnview/showSolution"));
+}
+
+void LearningWidgetTest::aNarrowLayoutBeforeTheCatalogKeepsTheStartButton()
+{
+    // Unter Android wird die schmale Anordnung gewaehlt, bevor ein Katalog
+    // geladen ist. Das darf "Runde starten" nicht dauerhaft sperren.
+    LearningWidget widget;
+    widget.setCompact(true);
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    widget.setCatalog(&catalog, catalogPathFor("de-amateurfunk-N.xml"));
+    QPushButton *start = findButton(&widget, QStringLiteral("Runde starten"));
+    QVERIFY(start);
+    QVERIFY(start->isEnabled());
+    start->click();
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Frage 1 von")) != nullptr);
 }
 
 QTEST_MAIN(LearningWidgetTest)
