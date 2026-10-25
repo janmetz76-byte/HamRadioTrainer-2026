@@ -13,7 +13,7 @@
 
 namespace hrt {
 
-class Catalog;
+struct Catalog;
 
 /// What the shipped manifest says about one class.
 struct CatalogManifestEntry
