@@ -1,0 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// HamRadioTrainer 2026 - Neu aufgebaut von Jan - DC6DX
+//
+// Bettet das Programmsymbol in die EXE ein, damit Explorer und Taskleiste es
+// ohne Umweg anzeigen.
+IDI_ICON1 ICON "icons/app.ico"

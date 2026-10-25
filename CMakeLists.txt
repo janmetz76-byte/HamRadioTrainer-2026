@@ -110,13 +110,11 @@ target_link_libraries(hrt_app PUBLIC hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 # Das Icon steckt in der Programmdatei, damit der Explorer es ohne Umweg
 # anzeigt, und wird zusaetzlich neben die Datei gelegt, damit die
 # Windows-Werkzeuge und die NAS-Verpackung es finden.
-if(WIN32)
-    set_source_files_properties(resources/icons/app.ico PROPERTIES
-        HEADER_FILE_ONLY TRUE)
-    target_sources(HamRadioTrainer2026 PRIVATE resources/icons/app.ico)
-endif()
-
 add_executable(HamRadioTrainer2026 WIN32 MACOSX_BUNDLE src/main.cpp)
+
+if(WIN32)
+    target_sources(HamRadioTrainer2026 PRIVATE resources/app.rc)
+endif()
 
 target_link_libraries(HamRadioTrainer2026 PRIVATE hrt_app hrt_ui hrt_core Qt6::Widgets Qt6::Gui)
 
