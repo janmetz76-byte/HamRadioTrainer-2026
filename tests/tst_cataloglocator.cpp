@@ -19,6 +19,7 @@ class CatalogLocatorTest : public QObject
 
 private slots:
     void searchDirectoriesArePlausible();
+    void theInstalledLayoutIsSearchedRelativeToTheProgram();
     void catalogsOfTheSourceTreeAreFound();
     void everyFoundCatalogIsReadable();
     void aDirectoryWithoutCatalogsIsSkipped();
@@ -37,6 +38,26 @@ void CatalogLocatorTest::searchDirectoriesArePlausible()
     // The directory of the running program has to be among them, otherwise a
     // portable installation could never find anything.
     QVERIFY(directories.contains(QCoreApplication::applicationDirPath()));
+}
+
+void CatalogLocatorTest::theInstalledLayoutIsSearchedRelativeToTheProgram()
+{
+    // The compiled-in prefix only holds while the installation stays where it
+    // was built for. Moved elsewhere - another folder in the Windows
+    // installer, an unpacked ZIP - the catalogs are only found from the
+    // program's own directory: <prefix>/bin/../<relative>/catalogs.
+    const QString expected = QDir::cleanPath(QCoreApplication::applicationDirPath()
+                                             + QStringLiteral("/../" HRT_CATALOG_RELATIVE_DIR "/catalogs"));
+    const QStringList directories = CatalogLocator::searchDirectories();
+    QVERIFY2(directories.contains(expected), qPrintable(directories.join(QLatin1Char('\n'))));
+
+    // It has to come before the compiled-in prefix, or a stale installation
+    // there would win over the one the program was started from.
+    const QString prefixed = QDir(QDir(QStringLiteral(HRT_INSTALL_DATA_DIR))
+                                      .filePath(QStringLiteral(HRT_CATALOG_RELATIVE_DIR)))
+                                 .filePath(QStringLiteral("catalogs"));
+    if (prefixed != expected)
+        QVERIFY(directories.indexOf(expected) < directories.indexOf(prefixed));
 }
 
 void CatalogLocatorTest::catalogsOfTheSourceTreeAreFound()

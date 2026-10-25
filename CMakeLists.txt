@@ -277,7 +277,9 @@ if(WIN32)
 endif()
 
 # Windows: collect Qt runtime next to the executable so the bundle is portable.
-if(WIN32)
+# Beim Cross-Build unter Linux laeuft windeployqt nicht; dort stellt
+# tools/windows-cross.sh die DLLs zusammen.
+if(WIN32 AND NOT CMAKE_CROSSCOMPILING)
     qt_generate_deploy_app_script(
         TARGET HamRadioTrainer2026
         OUTPUT_SCRIPT deploy_script

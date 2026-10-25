@@ -2,6 +2,8 @@
 /build/
 /build-*/
 /dist/
+/dist-win/
+/HamRadioTrainer2026-windows-*.zip
 /out/
 *.user
 

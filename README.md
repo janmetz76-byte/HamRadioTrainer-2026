@@ -71,6 +71,19 @@ cmake --install build --prefix dist
 neben der EXE ab. Ergebnis ist ein Verzeichnis `dist`, das ohne Installation auf
 einem anderen Windows-Rechner läuft.
 
+### Windows-Version unter Linux bauen (Cross-Compile)
+
+```sh
+sudo pacman -S --needed llvm-mingw 7zip qt6-base qt6-svg
+tools/windows-cross.sh
+```
+
+Das Skript lädt Qt für Windows (llvm-mingw) in derselben Version wie das
+Host-Qt nach `~/.local/share/hamradiotrainer-cross`, baut nach `build-win/` und
+stellt in `dist-win/` einen portablen Ordner mit allen benötigten DLLs und
+Qt-Plugins zusammen, zusätzlich als `HamRadioTrainer2026-windows-x64.zip`.
+Einzelschritte: `setup`, `build`, `deploy`.
+
 ## Fragenkataloge
 
 ### Format

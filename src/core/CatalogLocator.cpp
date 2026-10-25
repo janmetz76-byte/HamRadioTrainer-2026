@@ -25,6 +25,7 @@ const QStringList kCatalogFiles = {
 QStringList CatalogLocator::searchDirectories()
 {
     QStringList directories;
+    const QString relative = QStringLiteral(HRT_CATALOG_RELATIVE_DIR);
 
     // 1. Next to the program. This covers a portable installation and the
     //    AppImage, where the catalogs are unpacked next to the binary.
@@ -32,6 +33,14 @@ QStringList CatalogLocator::searchDirectories()
     if (!applicationDirectory.isEmpty()) {
         directories << applicationDirectory
                     << QDir(applicationDirectory).filePath(QStringLiteral("data/catalogs"));
+
+        // The installed layout seen from the program: <prefix>/bin/ holds the
+        // binary, <prefix>/<relative> the catalogs. Only this finds them when
+        // the installation was moved away from the prefix it was built for -
+        // a Windows installer pointed at another folder, or the unpacked ZIP.
+        const QString installed =
+            QDir::cleanPath(QDir(applicationDirectory).filePath(QStringLiteral("../") + relative));
+        directories << QDir(installed).filePath(QStringLiteral("catalogs")) << installed;
 #ifdef Q_OS_MACOS
         // Inside an application bundle the catalogs live next to the bundle.
         directories << QDir(applicationDirectory).filePath(QStringLiteral("../Resources/catalogs"));
@@ -44,7 +53,6 @@ QStringList CatalogLocator::searchDirectories()
     // every way of installing: a distribution package goes to /usr, a plain
     // "make install" goes to /usr/local. Both are therefore checked, along
     // with whatever this build was configured for.
-    const QString relative = QStringLiteral(HRT_CATALOG_RELATIVE_DIR);
     const QStringList prefixes = {QStringLiteral(HRT_INSTALL_DATA_DIR),
                                   QStringLiteral("/usr"),
                                   QStringLiteral("/usr/local")};
