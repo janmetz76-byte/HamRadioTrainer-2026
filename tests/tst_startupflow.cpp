@@ -3,6 +3,8 @@
 //
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+#include "AnswerView.h"
+#include "LearningWidget.h"
 #include "MainWindow.h"
 #include "StartupDialog.h"
 #include "core/CatalogXml.h"
@@ -22,7 +24,12 @@
 #include <QStandardPaths>
 #include <QTest>
 #include <QAbstractButton>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QSpinBox>
 #include <QToolButton>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -171,6 +178,7 @@ void resetSettings()
     settings.remove(QStringLiteral("startup/done"));
     settings.remove(QStringLiteral("startup/examDate"));
     settings.remove(QStringLiteral("startup/parts"));
+    settings.remove(QStringLiteral("startup/combination"));
 }
 
 } // namespace
@@ -196,6 +204,8 @@ private slots:
     void theUpdateEntrySitsWithTheCatalogs();
     void aChangedCatalogKeepsTheLearningProgress();
     void choosingToStartOverDropsTheLearningProgress();
+    void whatWasLearnedSurvivesARestart();
+    void anAscentLearnsOnlyItsOwnParts();
     void theHelpNamesTheSourceAndItsLicence();
     void theSidebarCarriesItsNameAndItsGroups();
     void theSidebarCanBeFoldedAway();
@@ -590,6 +600,147 @@ void StartupFlowTest::choosingToStartOverDropsTheLearningProgress()
     QVERIFY2(nachher.states.isEmpty(),
              "Neu beginnen muss den alten Fortschritt tatsaechlich verwerfen");
     QCOMPARE(nachher.keptStates, 0);
+}
+
+void StartupFlowTest::whatWasLearnedSurvivesARestart()
+{
+    // Wer mitten in einer Lernrunde das Programm schliesst, darf beim
+    // naechsten Start nicht bei null stehen. Lern- und Pruefungsansicht
+    // fuehren je einen eigenen Stand; gespeichert wurde frueher nur der der
+    // Pruefung, und alles in der Lernansicht Beantwortete ging verloren.
+    hrt::Catalog catalog;
+    QString error;
+    QVERIFY2(hrt::CatalogXml::load(aRealCatalog(), &catalog, &error), qPrintable(error));
+    const QString file = hrt::ProgressStore::defaultPath(catalog);
+    QFile::remove(file);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+    settings.setValue(QStringLiteral("startup/done"), true);
+
+    {
+        AssistantCloser closer;
+        MainWindow window;
+        window.openInitialCatalog();
+        closer.stop();
+
+        auto *learning = window.findChild<hrt::LearningWidget *>();
+        QVERIFY(learning);
+        for (QSpinBox *spin : learning->findChildren<QSpinBox *>()) {
+            spin->setValue(5);
+            break;
+        }
+        QPushButton *start = nullptr;
+        QPushButton *sure = nullptr;
+        for (QPushButton *button : learning->findChildren<QPushButton *>()) {
+            if (button->text() == QStringLiteral("Runde starten"))
+                start = button;
+            if (button->text() == QStringLiteral("Sicher"))
+                sure = button;
+        }
+        QVERIFY(start && sure);
+        start->click();
+
+        // Zwei von fuenf Fragen, dann wird das Fenster geschlossen - die
+        // Runde ist nicht zu Ende.
+        for (int step = 0; step < 2; ++step) {
+            auto *answers = learning->findChild<hrt::AnswerView *>();
+            QVERIFY(answers);
+            QAbstractButton *first = nullptr;
+            for (QAbstractButton *button : answers->findChildren<QAbstractButton *>()) {
+                if (qobject_cast<QRadioButton *>(button) || qobject_cast<QCheckBox *>(button)) {
+                    first = button;
+                    break;
+                }
+            }
+            QVERIFY(first);
+            first->click();
+            sure->click();
+            for (QPushButton *button : learning->findChildren<QPushButton *>()) {
+                if (button->text() == QStringLiteral("Nächste Frage"))
+                    button->click();
+            }
+        }
+    }
+
+    const hrt::ProgressLoad loaded = hrt::ProgressStore(file).load(catalog);
+    QVERIFY2(loaded.error.isEmpty(), qPrintable(loaded.error));
+    QCOMPARE(loaded.states.size(), 2);
+
+    // Und das neu gestartete Programm zeigt ihn auch an.
+    AssistantCloser closer;
+    MainWindow again;
+    again.openInitialCatalog();
+    closer.stop();
+    auto *learning = again.findChild<hrt::LearningWidget *>();
+    QVERIFY(learning);
+    QCOMPARE(learning->scheduler().states().size(), 2);
+    QFile::remove(file);
+}
+
+void StartupFlowTest::anAscentLearnsOnlyItsOwnParts()
+{
+    // Wer die Klasse N schon hat und nach E aufsteigt, lernt nur noch die
+    // Technik Klasse E. Frueher galt die Wahl im Assistenten allein fuer die
+    // Pruefungssimulation; die Lernansicht bot weiter den ganzen Katalog an.
+    QSettings settings;
+    settings.setValue(QStringLiteral("catalog/lastPath"), aRealCatalog());
+    settings.setValue(QStringLiteral("startup/done"), false);
+
+    QTimer answer;
+    answer.setInterval(20);
+    connect(&answer, &QTimer::timeout, this, [] {
+        for (QWidget *widget : QApplication::topLevelWidgets()) {
+            auto *dialog = qobject_cast<StartupDialog *>(widget);
+            if (!dialog)
+                continue;
+            for (QRadioButton *button : dialog->findChildren<QRadioButton *>()) {
+                if (button->text() == QStringLiteral("Von Klasse N nach E"))
+                    button->setChecked(true);
+            }
+            dialog->accept();
+            return;
+        }
+    });
+    answer.start();
+    AssistantCloser closer;
+    MainWindow window;
+    window.openInitialCatalog();
+    answer.stop();
+    closer.stop();
+
+    // Geoeffnet ist der Katalog der Klasse E, gemerkt der gewaehlte Fall.
+    QVERIFY2(settings.value(QStringLiteral("catalog/lastPath")).toString().endsWith(
+                 QStringLiteral("de-amateurfunk-E.xml")),
+             qPrintable(settings.value(QStringLiteral("catalog/lastPath")).toString()));
+    QCOMPARE(settings.value(QStringLiteral("startup/combination")).toString(),
+             QStringLiteral("N-E"));
+
+    // Die Teilauswahl der Lernansicht kennt nur noch "alle" und den Teil E.
+    auto *learning = window.findChild<hrt::LearningWidget *>();
+    QVERIFY(learning);
+    QComboBox *filter = nullptr;
+    for (QComboBox *box : learning->findChildren<QComboBox *>()) {
+        if (box->findData(QString()) == 0)
+            filter = box;
+    }
+    QVERIFY(filter);
+    QCOMPARE(filter->count(), 2);
+    QCOMPARE(filter->itemData(1).toString(), QStringLiteral("E"));
+
+    // Und eine Runde ueber "alle" stellt nur Fragen aus dem Teil E.
+    for (QSpinBox *spin : learning->findChildren<QSpinBox *>()) {
+        spin->setValue(20);
+        break;
+    }
+    for (QPushButton *button : learning->findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("Runde starten"))
+            button->click();
+    }
+    const QStringList plan = learning->currentPlan();
+    QVERIFY(!plan.isEmpty());
+    for (const QString &id : plan)
+        QVERIFY2(id.startsWith(QLatin1Char('E')), qPrintable(id));
 }
 
 void StartupFlowTest::theHelpNamesTheSourceAndItsLicence()

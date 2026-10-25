@@ -9,6 +9,7 @@
 
 #include <QAbstractButton>
 #include <QCheckBox>
+#include <QLabel>
 #include <QRadioButton>
 #include <QtTest>
 
@@ -60,6 +61,7 @@ private slots:
     void aChosenAnswerColoursItsWholeRow();
     void anotherAnswerTakesTheColourAway();
     void theSolutionOutranksTheChoice();
+    void clickingTheTextOrTheLetterChoosesTheAnswer();
 
 private:
     Question m_frage;
@@ -142,6 +144,53 @@ void AnswerViewTest::theSolutionOutranksTheChoice()
     QVERIFY(zeile->autoFillBackground());
     const QColor farbe = zeile->palette().color(QPalette::Window);
     QVERIFY2(farbe.green() > farbe.blue(), "die Loesungsfarbe kam nicht durch");
+}
+
+void AnswerViewTest::clickingTheTextOrTheLetterChoosesTheAnswer()
+{
+    // Den Auswahlpunkt exakt zu treffen ist muehsam. Ein Klick auf den Text
+    // oder den Buchstaben der Antwort muss genauso zaehlen. Der Klick geht
+    // ueber das Fenster, damit Qt wie bei einer echten Maus selbst bestimmt,
+    // welches Widget getroffen ist.
+    QVERIFY(QTest::qWaitForWindowExposed(m_sicht));
+    const QList<QAbstractButton *> knoepfe = steuerung(m_sicht);
+    QCOMPARE(knoepfe.size(), 4);
+
+    const auto klickAuf = [this](QWidget *ziel) {
+        const QPoint mitte = ziel->mapTo(m_sicht->window(), ziel->rect().center());
+        QTest::mouseClick(m_sicht->window()->windowHandle(), Qt::LeftButton, {}, mitte);
+    };
+    const auto textDerZeile = [](QAbstractButton *knopf) -> QLabel * {
+        for (QLabel *label : knopf->parentWidget()->findChildren<QLabel *>()) {
+            if (label->wordWrap())
+                return label;
+        }
+        return nullptr;
+    };
+    const auto buchstabeDerZeile = [](QAbstractButton *knopf) -> QLabel * {
+        for (QLabel *label : knopf->parentWidget()->findChildren<QLabel *>()) {
+            if (label->text().size() == 1 && label->isVisible())
+                return label;
+        }
+        return nullptr;
+    };
+
+    QLabel *text = textDerZeile(knoepfe.at(1));
+    QVERIFY(text);
+    klickAuf(text);
+    QCOMPARE(m_sicht->selection(), 1);
+    QVERIFY(knoepfe.at(1)->isChecked());
+
+    QLabel *buchstabe = buchstabeDerZeile(knoepfe.at(3));
+    QVERIFY(buchstabe);
+    QCOMPARE(buchstabe->text(), QStringLiteral("D"));
+    klickAuf(buchstabe);
+    QCOMPARE(m_sicht->selection(), 3);
+
+    // Nach der Aufloesung nimmt keine Zeile mehr einen Klick an.
+    m_sicht->reveal(0, 3);
+    klickAuf(textDerZeile(knoepfe.at(0)));
+    QCOMPARE(m_sicht->selection(), 3);
 }
 
 QTEST_MAIN(AnswerViewTest)

@@ -7,26 +7,32 @@
 
 #include "core/Catalog.h"
 
+#include <QDate>
 #include <QDialog>
+#include <QHash>
 #include <QSet>
 #include <QStringList>
+#include <QVector>
 
-class QCheckBox;
-class QComboBox;
-class QGroupBox;
-class QVBoxLayout;
+class QButtonGroup;
 class QDateEdit;
 class QLabel;
+class QRadioButton;
 
 namespace hrt {
 
 /// Start screen of the application, modelled on the configuration assistant of
 /// the 2015 trainer.
 ///
-/// The old program asked three things before it let anybody in: which exam is
-/// being prepared for, which subject areas are wanted, and when the exam takes
-/// place. That is worth keeping - an application that silently opens class N
-/// when the learner is sitting the A exam wastes their time.
+/// The old program asked which exam is being prepared for and when it takes
+/// place before it let anybody in. That is worth keeping - an application that
+/// silently opens class N when the learner is sitting the A exam wastes their
+/// time.
+///
+/// The learner picks one of the six ways to the certificate that
+/// Amtsblatt-Verfügung 29/2024 knows: three examinations from scratch and
+/// three ascents. The catalog follows from the class, and only the parts that
+/// case requires are learned and examined.
 ///
 /// The date is optional and only informational. It is shown as a countdown;
 /// it does not change which questions are asked.
@@ -37,7 +43,8 @@ class StartupDialog : public QDialog
 public:
     struct Result
     {
-        QString catalogPath;        ///< empty when nothing suitable was found
+        QString combination;        ///< id of the chosen case, see Combination::id
+        QString catalogPath;        ///< catalog of the target class
         QSet<int> selectedParts;    ///< indexes into the catalog's part list
         QDate examDate;             ///< invalid when none was given
         bool accepted = false;
@@ -47,6 +54,10 @@ public:
 
     Result result() const { return m_result; }
 
+    /// Selects the case with the given id, typically the one chosen last time.
+    /// Unknown ids and cases without a catalog are ignored.
+    void preselect(const QString &combinationId);
+
     /// Oeffentlich, damit der Test denselben Weg nimmt wie der Knopf.
     void accept() override;
 
@@ -54,16 +65,12 @@ public:
     /// puts it.
     struct Combination
     {
-        QString label;      ///< shown as a check box
-        QString note;       ///< why the learner does not need the other parts
-        QString targetClass;///< class the certificate is applied for
-        QVector<int> parts; ///< indexes into the catalog's part list
-        /// Was in der Zeile angezeigt wird. Leer heisst: alles aus parts.
-        ///
-        /// Der Aufstieg von N nach A prueft laut Verfuegung E und A. In der
-        /// Zeile steht nur die Technik Klasse A, weil das die einzige ist,
-        /// die auf dem Zertifikat steht; der Hinweis nennt E mit.
-        QVector<int> shownParts;
+        QString id;          ///< stable key for the settings: "N", "N-E", ...
+        QString label;       ///< shown at the radio button
+        QString note;        ///< why the other parts are not needed
+        QString targetClass; ///< class the certificate is applied for
+        QVector<int> parts;  ///< indexes into the catalog's part list
+        bool ascent = false; ///< an earlier certificate is credited
     };
 
     /// The parts needed for a full examination of the given class, without
@@ -75,25 +82,31 @@ public:
     ///
     /// 7.3 der Verfuegung laesst bereits bestandene Frageboegen weg: wer die
     /// Klasse N hat, muss fuer die Klasse E nur noch E beantworten, wer die
-    /// Klasse N hat, fuer die Klasse A nur noch E und A, und wer die Klasse E
-    /// hat, fuer die Klasse A nur noch A. Ohne diese Aufstiegsfaelle
-    /// beantwortet der Assistent mehr, als die Verfuegung vorsieht.
+    /// Klasse N hat, fuer die Klasse A noch E und A, und wer die Klasse E
+    /// hat, fuer die Klasse A nur noch A.
     static QVector<Combination> combinations();
 
-    /// Only the combinations whose parts all exist in the given catalog.
-    static QVector<Combination> combinationsFor(const Catalog &catalog);
+    /// Readable name of a Prüfungsteil, by its index.
+    static QString partName(int part);
 
 private:
-    void rebuildPartChoices();
+    struct CatalogInfo
+    {
+        QString path;
+        QString title;
+        QVector<int> questionsPerPart;
+    };
+
+    void updateSummary();
+    int chosenIndex() const;
 
     Result m_result;
-    QComboBox *m_catalog = nullptr;
-    QVector<QCheckBox *> m_partBoxes;
-    QLabel *m_hint = nullptr;
+    QVector<Combination> m_combinations;
+    QHash<QString, CatalogInfo> m_catalogs; ///< by exam class
+    QButtonGroup *m_choices = nullptr;
+    QVector<QRadioButton *> m_buttons;
+    QLabel *m_summary = nullptr;
     QDateEdit *m_date = nullptr;
-    QVector<Combination> m_shown;
-    QGroupBox *m_partsBox = nullptr;
-    QVBoxLayout *m_partsLayout = nullptr;
 };
 
 } // namespace hrt

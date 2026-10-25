@@ -14,6 +14,7 @@
 
 #include <QDate>
 #include <QMainWindow>
+#include <QSet>
 #include <QVector>
 
 class QButtonGroup;
@@ -69,6 +70,7 @@ public:
 private:
     void loadProgress();
     void saveProgress();
+    void applySelectedParts(const QSet<int> &parts);
     /// Herkunft und Lizenz des geladenen Katalogs fuer den Hilfetext.
     QString catalogProvenance() const;
     void showResult(const ExamResult &result);

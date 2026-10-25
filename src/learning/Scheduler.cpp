@@ -65,25 +65,34 @@ const QuestionState &Scheduler::record(const AnswerOutcome &outcome)
     state->confidence = outcome.confidence;
     state->lastSeen = today;
 
+    const bool guessed = outcome.confidence == Confidence::Guessing;
     if (outcome.correct) {
+        // Ein Treffer zaehlt in der Trefferquote immer. Geraten ist er aber
+        // kein Wissen: die Frage bleibt auf ihrer Stufe, und die Serie
+        // richtiger Antworten waechst nicht.
         ++state->timesCorrect;
-        ++state->consecutiveCorrect;
-
-        // A correct answer the learner only guessed moves the question less far
-        // than one that felt certain.
-        const int gain = (outcome.confidence == Confidence::Certain)      ? 2
-                         : (outcome.confidence == Confidence::FairlySure) ? 1
-                                                                          : 0;
-        state->box = std::min(MaxBox, state->box + 1 + gain);
+        if (guessed) {
+            state->consecutiveCorrect = 0;
+        } else {
+            ++state->consecutiveCorrect;
+            // The surer the learner was, the further the question moves away.
+            const int gain = (outcome.confidence == Confidence::Certain)      ? 2
+                             : (outcome.confidence == Confidence::FairlySure) ? 1
+                                                                              : 0;
+            state->box = std::min(MaxBox, state->box + 1 + gain);
+        }
     } else {
         state->consecutiveCorrect = 0;
         state->box = std::max(0, state->box - 2);
     }
 
     // Spacing: the further along in the boxes, the longer the wait. A box that
-    // was lowered comes back quickly.
+    // was lowered comes back quickly. A guessed hit comes back the next day at
+    // the latest, not in the same round over and over.
     static const int daysPerBox[] = {0, 1, 3, 7, 16, 35};
-    const int days = daysPerBox[std::clamp(state->box, 0, MaxBox)];
+    int days = daysPerBox[std::clamp(state->box, 0, MaxBox)];
+    if (outcome.correct && guessed)
+        days = std::max(days, 1);
     state->dueOn = today.addDays(days);
 
     return *state;

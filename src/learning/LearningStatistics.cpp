@@ -27,14 +27,31 @@ bool isDue(const QuestionState &state, const QDate &today)
 
 } // namespace
 
+QSet<int> effectiveParts(const Catalog &catalog, const QSet<int> &selected)
+{
+    QSet<int> parts;
+    for (int part : selected) {
+        if (part >= 0 && part < catalog.parts.size())
+            parts.insert(part);
+    }
+    if (parts.isEmpty()) {
+        for (int i = 0; i < catalog.parts.size(); ++i)
+            parts.insert(i);
+    }
+    return parts;
+}
+
 LearningStatistics computeStatistics(const Catalog &catalog, const Scheduler &scheduler,
-                                     const QDate &today)
+                                     const QDate &today, const QSet<int> &parts)
 {
     LearningStatistics statistics;
     statistics.byBox.assign(Scheduler::MaxBox + 1, 0);
+    const QSet<int> counted = effectiveParts(catalog, parts);
 
     QHash<QString, int> indexOfLetter;
     for (int i = 0; i < catalog.parts.size(); ++i) {
+        if (!counted.contains(i))
+            continue;
         PartProgress progress;
         progress.partId = catalog.parts.at(i).id;
         progress.letter = examPartLetter(catalog.parts.at(i));
@@ -45,7 +62,10 @@ LearningStatistics computeStatistics(const Catalog &catalog, const Scheduler &sc
 
     // Questions are visited through their Prüfungsteil, so each one is counted
     // in the part it is actually asked in.
-    for (const Part &part : catalog.parts) {
+    for (int i = 0; i < catalog.parts.size(); ++i) {
+        if (!counted.contains(i))
+            continue;
+        const Part &part = catalog.parts.at(i);
         const int partIndex = indexOfLetter.value(examPartLetter(part), -1);
         PartProgress *partProgress = partIndex >= 0 ? &statistics.parts[partIndex] : nullptr;
 

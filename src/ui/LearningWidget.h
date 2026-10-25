@@ -47,6 +47,11 @@ public:
     void clearProgress();
     const Scheduler &scheduler() const { return m_scheduler; }
 
+    /// The Prüfungsteile the learner prepares for, as indexes into the
+    /// catalog's part list. Rounds, the part filter and the figures cover only
+    /// these; empty means the whole catalog.
+    void setSelectedParts(const QSet<int> &parts);
+
     /// Recomputes the figures from the stored progress.
     void refresh();
 
@@ -78,6 +83,7 @@ private:
     QString m_catalogDir;
     Scheduler m_scheduler;
     QHash<QString, const Question *> m_byId;
+    QSet<int> m_selectedParts;
 
     std::optional<StudySession> m_session;
     int m_index = 0;
@@ -86,6 +92,7 @@ private:
     QString m_pendingQuestionId;
     int m_pendingCorrectPosition = -1;
 
+    QWidget *m_overview = nullptr;
     QLabel *m_summary = nullptr;
     QTableWidget *m_boxes = nullptr;
     QTableWidget *m_parts = nullptr;
@@ -94,6 +101,7 @@ private:
     QSpinBox *m_roundSize = nullptr;
     QCheckBox *m_onlyDue = nullptr;
     QCheckBox *m_onlyShaky = nullptr;
+    QCheckBox *m_showSolution = nullptr;
     QComboBox *m_partFilter = nullptr;
     QPushButton *m_start = nullptr;
 

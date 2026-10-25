@@ -22,6 +22,7 @@
 #include "AppIcons.h"
 
 #include <QPushButton>
+#include <QSettings>
 #include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSpinBox>
@@ -135,10 +136,11 @@ QString boxDescription(int box)
     if (box >= Scheduler::MaxBox)
         return QObject::tr("Gefestigt: mehrfach richtig in Folge. Wird nur selten "
                           "wiederholt und zählt als bekannt.");
-    return QObject::tr("Stufe %1: richtig beantwortet, aber noch nicht gefestigt. Jede "
-                       "richtige Antwort geht eine Stufe höher, jede falsche zwei "
-                       "Stufen zurück. Mit steigender Stufe wird die Frage immer "
-                       "seltener abgefragt.")
+    return QObject::tr("Stufe %1: richtig beantwortet, aber noch nicht gefestigt. Eine "
+                       "sichere richtige Antwort geht drei Stufen höher, eine unsichere "
+                       "eine Stufe, eine geratene bleibt auf ihrer Stufe. Jede falsche "
+                       "Antwort geht zwei Stufen zurück. Mit steigender Stufe wird die "
+                       "Frage immer seltener abgefragt.")
         .arg(box);
 }
 
@@ -149,13 +151,21 @@ LearningWidget::LearningWidget(QWidget *parent)
 {
     auto *layout = new QVBoxLayout(this);
 
+    // Der Ueberblick steht nur zwischen den Runden da. Waehrend einer Runde
+    // bekommt die Frage die ganze Hoehe: sonst blieb ihr bei normaler
+    // Fenstergroesse ein Streifen, in dem gerade die erste Antwort Platz hatte.
+    m_overview = new QWidget(this);
+    m_overview->setObjectName(QStringLiteral("lernueberblick"));
+    auto *overviewLayout = new QVBoxLayout(m_overview);
+    overviewLayout->setContentsMargins(0, 0, 0, 0);
+
     m_summary = new QLabel(this);
     QFont summaryFont = m_summary->font();
     summaryFont.setBold(true);
     m_summary->setFont(summaryFont);
     m_summary->setWordWrap(true);
-    layout->addWidget(new SectionBar(tr("Lernfortschritt"), this));
-    layout->addWidget(m_summary);
+    overviewLayout->addWidget(new SectionBar(tr("Lernfortschritt"), this));
+    overviewLayout->addWidget(m_summary);
 
     m_boxes = new QTableWidget(1, Scheduler::MaxBox + 1, this);
     m_boxes->setObjectName(QStringLiteral("leitnerOrdner"));
@@ -180,18 +190,19 @@ LearningWidget::LearningWidget(QWidget *parent)
         m_boxes->setItem(0, box, cell);
     }
     m_boxes->setToolTip(boxDescription(1));
-    layout->addWidget(m_boxes);
+    overviewLayout->addWidget(m_boxes);
 
     // Wer "Ordner 1 bis 3" nicht kennt, kann die Anzeige nicht deuten. Ein
     // Satz darueber kostet nichts und beantwortet die Frage.
     auto *legend = new QLabel(
-        tr("Lernstufen nach Leitner: eine richtige Antwort hebt die Frage eine Stufe, eine "
-           "falsche drückt sie zwei Stufen zurück. Je höher die Stufe, desto seltener wird "
-           "die Frage wiederholt. Die Stufe gefestigt zählt als bekannt."),
+        tr("Lernstufen nach Leitner: eine sichere richtige Antwort hebt die Frage drei "
+           "Stufen, eine unsichere eine Stufe, eine geratene gar nicht. Eine falsche Antwort "
+           "drückt sie zwei Stufen zurück. Je höher die Stufe, desto seltener wird die Frage "
+           "wiederholt. Die Stufe gefestigt zählt als bekannt."),
         this);
     legend->setWordWrap(true);
     legend->setStyleSheet(QStringLiteral("color: palette(mid);"));
-    layout->addWidget(legend);
+    overviewLayout->addWidget(legend);
 
     m_parts = new QTableWidget(0, 6, this);
     m_parts->setObjectName(QStringLiteral("fortschrittJePruefungsteil"));
@@ -202,7 +213,8 @@ LearningWidget::LearningWidget(QWidget *parent)
     m_parts->setSelectionMode(QAbstractItemView::NoSelection);
     m_parts->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     m_parts->setMaximumHeight(200);
-    layout->addWidget(m_parts);
+    overviewLayout->addWidget(m_parts);
+    layout->addWidget(m_overview);
 
     // Das Kästchen mit Rahmen und die graue Leiste würden zweimal
     // "Übungsrunde" sagen. Die Leiste ersetzt den Rahmen; sie sitzt in
@@ -219,8 +231,23 @@ LearningWidget::LearningWidget(QWidget *parent)
     m_onlyDue->setToolTip(tr("Nur Wiederholungen, deren Fälligkeit erreicht ist."));
     optionsLayout->addWidget(m_onlyDue);
     m_onlyShaky = new QCheckBox(tr("nur wackelige"), options);
-    m_onlyShaky->setToolTip(tr("Nur Fragen, die zuletzt falsch beantwortet wurden."));
+    m_onlyShaky->setToolTip(tr("Nur Fragen, die zuletzt falsch beantwortet oder geraten wurden."));
     optionsLayout->addWidget(m_onlyShaky);
+    // Wie im Trainer von 2015 abschaltbar: wer ohne Aufloesung durch die
+    // Runde gehen will, erfaehrt erst am Ende, wie viele Antworten stimmten.
+    m_showSolution = new QCheckBox(tr("Lösung nach jeder Antwort zeigen"), options);
+    m_showSolution->setToolTip(tr("Nach der Selbsteinschätzung zeigen, ob die Antwort richtig "
+                                  "war und welche Antwort richtig ist."));
+    {
+        QSettings settings;
+        m_showSolution->setChecked(
+            settings.value(QStringLiteral("learnview/showSolution"), true).toBool());
+    }
+    connect(m_showSolution, &QCheckBox::toggled, this, [](bool on) {
+        QSettings settings;
+        settings.setValue(QStringLiteral("learnview/showSolution"), on);
+    });
+    optionsLayout->addWidget(m_showSolution);
     optionsLayout->addWidget(new QLabel(tr("Prüfungsteil:"), options));
     m_partFilter = new QComboBox(options);
     optionsLayout->addWidget(m_partFilter);
@@ -248,7 +275,9 @@ LearningWidget::LearningWidget(QWidget *parent)
     layout->addWidget(m_explanation);
 
     // The self report. Without it a correctly answered but guessed question
-    // would be treated like a question that was known.
+    // would be treated like a question that was known. It is also what hands
+    // the answer in: the learner judges their own answer before the solution
+    // is shown, as in the 2015 trainer.
     auto *confidenceRow = new QHBoxLayout;
     confidenceRow->addWidget(new QLabel(tr("Wie sicher war die Antwort?"), this));
     m_confident = new QPushButton(AppIcons::get(QStringLiteral("confident")),
@@ -291,6 +320,7 @@ void LearningWidget::setCatalog(const Catalog *catalog, const QString &catalogPa
     m_answers->setQuestion(nullptr, {}, QDir());
     m_explanation->clear();
     m_progress->clear();
+    m_overview->show();
     refreshPartFilter();
     refresh();
 }
@@ -307,13 +337,26 @@ void LearningWidget::clearProgress()
     refresh();
 }
 
+void LearningWidget::setSelectedParts(const QSet<int> &parts)
+{
+    m_selectedParts = parts;
+    refreshPartFilter();
+    refresh();
+}
+
 void LearningWidget::refreshPartFilter()
 {
     const QString previous = m_partFilter->currentData().toString();
     m_partFilter->clear();
     m_partFilter->addItem(tr("alle"), QString());
     if (m_catalog) {
-        for (const Part &part : m_catalog->parts) {
+        // Nur die Teile, fuer die gelernt wird: wer von N nach E aufsteigt,
+        // soll Vorschriften und Betriebstechnik nicht wieder angeboten bekommen.
+        const QSet<int> selected = effectiveParts(*m_catalog, m_selectedParts);
+        for (int i = 0; i < m_catalog->parts.size(); ++i) {
+            if (!selected.contains(i))
+                continue;
+            const Part &part = m_catalog->parts.at(i);
             const QString letter = examPartLetter(part);
             if (letter.isEmpty())
                 continue;
@@ -333,7 +376,8 @@ void LearningWidget::refresh()
         return;
     }
 
-    const LearningStatistics statistics = computeStatistics(*m_catalog, m_scheduler);
+    const LearningStatistics statistics =
+        computeStatistics(*m_catalog, m_scheduler, QDate::currentDate(), m_selectedParts);
 
     // No percent sign in the format string: QString::arg only unescapes "%%"
     // on the first call, so it would be shown literally.
@@ -394,8 +438,16 @@ StudyOptions LearningWidget::currentOptions() const
     options.onlyDue = m_onlyDue->isChecked();
     options.onlyShaky = m_onlyShaky->isChecked();
     const QString part = m_partFilter->currentData().toString();
-    if (!part.isEmpty())
+    if (!part.isEmpty()) {
         options.parts = {part};
+    } else if (m_catalog) {
+        // "alle" heisst: alle gewaehlten Teile, nicht der ganze Katalog.
+        const QSet<int> selected = effectiveParts(*m_catalog, m_selectedParts);
+        for (int i = 0; i < m_catalog->parts.size(); ++i) {
+            if (selected.contains(i))
+                options.parts.append(examPartLetter(m_catalog->parts.at(i)));
+        }
+    }
     return options;
 }
 
@@ -422,6 +474,7 @@ void LearningWidget::showCurrent()
 {
     const bool running = m_session.has_value() && m_index < m_session->count();
 
+    m_overview->setVisible(!running);
     m_start->setEnabled(m_catalog && !running);
     m_roundSize->setEnabled(!running);
     m_onlyDue->setEnabled(!running);
@@ -448,6 +501,7 @@ void LearningWidget::showCurrent()
         return;
     }
     m_pendingQuestionId = id;
+    m_explanation->clear();
 
     m_progress->setText(tr("Frage %1 von %2  ·  Prüfungsteil %3")
                             .arg(m_index + 1)
@@ -460,11 +514,23 @@ void LearningWidget::showCurrent()
 
 void LearningWidget::onAnswerSelected(int position)
 {
-    if (!m_session || position < 0)
+    // Die Auswahl allein verraet noch nichts. Erst die Selbsteinschaetzung
+    // gibt die Antwort ab - wer die Loesung schon sieht, schaetzt nicht mehr
+    // sich selbst ein, sondern nur noch, ob er richtig lag.
+    if (!m_session || m_pendingQuestionId.isEmpty())
+        return;
+    for (QPushButton *button : {m_confident, m_unsure, m_guessing})
+        button->setEnabled(position >= 0);
+}
+
+void LearningWidget::rateConfidence(int confidence)
+{
+    if (!m_session || m_pendingQuestionId.isEmpty())
         return;
 
+    const int position = m_answers->selection();
     const Question *question = m_byId.value(m_pendingQuestionId, nullptr);
-    if (!question)
+    if (!question || position < 0)
         return;
 
     const QVector<int> &order = PaperBuilder::shuffledAnswerOrder(*question, m_seed,
@@ -481,35 +547,35 @@ void LearningWidget::onAnswerSelected(int position)
     if (correct)
         ++m_correct;
 
-    m_answers->reveal(correctPosition, position);
-    m_explanation->setText(correct ? tr("Richtig.") : tr("Falsch."));
-    if (!question->explanation.isEmpty())
-        m_explanation->setText(m_explanation->text() + QLatin1Char('\n')
-                               + question->explanation);
-
-    // The self report is asked only now: the learner has to have judged their
-    // own answer, not the correct one.
-    for (QPushButton *button : {m_confident, m_unsure, m_guessing})
-        button->setEnabled(true);
-}
-
-void LearningWidget::rateConfidence(int confidence)
-{
-    if (!m_session || m_pendingQuestionId.isEmpty())
-        return;
-
-    const Question *question = m_byId.value(m_pendingQuestionId, nullptr);
-    const bool correct = question && m_pendingCorrectPosition >= 0
-                         && m_answers->selection() == m_pendingCorrectPosition;
-
     m_session->record(m_pendingQuestionId, correct, static_cast<Confidence>(confidence));
     m_pendingQuestionId.clear();
-
     emit progressChanged(m_scheduler);
     refresh();
 
-    ++m_index;
-    showCurrent();
+    if (!m_showSolution->isChecked()) {
+        ++m_index;
+        showCurrent();
+        return;
+    }
+
+    // Erst jetzt die Aufloesung, wie im Trainer von 2015: "Antwort B ist
+    // leider falsch. Richtig ist C." Der Buchstabe ist der angezeigte, nicht
+    // der aus der Quelle - sonst passte er nicht zur gemischten Reihenfolge.
+    const QStringList letters = m_answers->badges();
+    const QString chosen = letters.value(position);
+    const QString right = letters.value(correctPosition);
+    m_answers->reveal(correctPosition, position);
+    QString feedback = correct ? tr("Antwort %1 ist richtig.").arg(chosen)
+                               : tr("Antwort %1 ist leider falsch. Richtig ist %2.")
+                                     .arg(chosen, right);
+    if (!question->explanation.isEmpty())
+        feedback += QLatin1Char('\n') + question->explanation;
+    m_explanation->setText(feedback);
+
+    for (QPushButton *button : {m_confident, m_unsure, m_guessing})
+        button->setEnabled(false);
+    m_nextQuestion->setEnabled(true);
+    m_nextQuestion->setFocus();
 }
 
 void LearningWidget::showSummary()
@@ -524,6 +590,7 @@ void LearningWidget::showSummary()
                             .arg(m_session ? m_session->freshCount() : 0));
     m_session.reset();
     m_index = 0;
+    m_overview->show();
     refresh();
 }
 

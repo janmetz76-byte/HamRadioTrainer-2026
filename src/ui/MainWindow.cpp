@@ -421,8 +421,18 @@ void MainWindow::buildUi()
     splitter->setSizes({190, 1100});
     setCentralWidget(splitter);
 
-    connect(m_exam, &ExamWidget::progressChanged, this, [this] { saveProgress(); });
-    connect(m_learning, &LearningWidget::progressChanged, this, [this] { saveProgress(); });
+    // Lern- und Pruefungsansicht fuehren je einen eigenen Scheduler. Was die
+    // eine meldet, muss die andere uebernehmen, bevor gespeichert wird:
+    // saveProgress() schreibt den Stand der Pruefung, und ohne diesen Abgleich
+    // ging alles in der Lernansicht Beantwortete beim Schliessen verloren.
+    connect(m_exam, &ExamWidget::progressChanged, this, [this](const Scheduler &scheduler) {
+        m_learning->setProgress(scheduler.states());
+        saveProgress();
+    });
+    connect(m_learning, &LearningWidget::progressChanged, this, [this](const Scheduler &scheduler) {
+        m_exam->setProgress(scheduler.states());
+        saveProgress();
+    });
     connect(m_exam, &ExamWidget::examFinished, this, &MainWindow::showResult);
 
     m_status = new QLabel(tr("Kein Katalog geladen"), this);
@@ -672,11 +682,13 @@ void MainWindow::runStartupAssistant()
         return;
 
     StartupDialog dialog(located.paths, this);
+    dialog.preselect(settings.value(QStringLiteral("startup/combination")).toString());
     if (dialog.exec() != QDialog::Accepted || !dialog.result().accepted)
         return;
 
     const StartupDialog::Result chosen = dialog.result();
     settings.setValue(QStringLiteral("startup/done"), true);
+    settings.setValue(QStringLiteral("startup/combination"), chosen.combination);
     settings.setValue(QStringLiteral("startup/examDate"), chosen.examDate);
     QVariantList parts;
     for (int part : chosen.selectedParts)
@@ -685,7 +697,7 @@ void MainWindow::runStartupAssistant()
 
     if (!chosen.catalogPath.isEmpty() && chosen.catalogPath != m_catalogPath)
         openCatalog(chosen.catalogPath);
-    m_exam->setSelectedParts(chosen.selectedParts);
+    applySelectedParts(chosen.selectedParts);
     // Der Assistent hat den Termin nur in die Einstellungen geschrieben. Ohne
     // dieses Zuspieln blieb die Countdown-Anzeige die ganze Sitzung ueber leer,
     // obwohl der Termin eingetragen war.
@@ -697,6 +709,16 @@ void MainWindow::runStartupAssistant()
     // Katalogansicht landet, muss sich noch einmal durchklicken, bis er
     // anfangen kann.
     selectView(kLearningView);
+}
+
+void MainWindow::applySelectedParts(const QSet<int> &parts)
+{
+    // Die Wahl im Assistenten gilt fuer Lernen, Statistik und Pruefung
+    // gleichermassen. Wer von N nach E aufsteigt, soll Vorschriften und
+    // Betriebstechnik weder ueben noch in der Statistik als offen sehen.
+    m_exam->setSelectedParts(parts);
+    m_learning->setSelectedParts(parts);
+    m_statistics->setSelectedParts(parts);
 }
 
 void MainWindow::updateExamCountdown()
@@ -729,7 +751,7 @@ void MainWindow::openInitialCatalog()
         QSet<int> parts;
         for (const QVariant &value : storedParts)
             parts.insert(value.toInt());
-        m_exam->setSelectedParts(parts);
+        applySelectedParts(parts);
     }
     updateExamCountdown();
 

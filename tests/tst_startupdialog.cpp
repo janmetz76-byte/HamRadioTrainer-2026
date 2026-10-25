@@ -7,11 +7,8 @@
 
 #include "core/CatalogXml.h"
 
-#include "ExamWidget.h"
-
-#include <QCheckBox>
 #include <QLabel>
-#include <QComboBox>
+#include <QRadioButton>
 #include <QtTest>
 
 using namespace hrt;
@@ -29,6 +26,33 @@ QStringList allCatalogs()
             catalogPath("de-amateurfunk-A.xml")};
 }
 
+QRadioButton *choice(const StartupDialog &dialog, const QString &label)
+{
+    for (QRadioButton *button : dialog.findChildren<QRadioButton *>()) {
+        if (button->text() == label)
+            return button;
+    }
+    return nullptr;
+}
+
+QString summaryOf(const StartupDialog &dialog)
+{
+    const auto *label = dialog.findChild<QLabel *>(QStringLiteral("auswahlUebersicht"));
+    return label ? label->text() : QString();
+}
+
+int questionsInPart(const char *file, int part)
+{
+    Catalog catalog;
+    QString error;
+    if (!CatalogXml::load(catalogPath(file), &catalog, &error))
+        qFatal("Katalog %s nicht lesbar: %s", file, qPrintable(error));
+    int questions = 0;
+    for (const Section &section : catalog.parts.at(part).sections)
+        questions += section.activeQuestionCount();
+    return questions;
+}
+
 } // namespace
 
 class StartupDialogTest : public QObject
@@ -37,13 +61,12 @@ class StartupDialogTest : public QObject
 
 private slots:
     void partsFollowTheAmtsblatt();
-    void labelsSpellThePartsOut();
-    void catalogNOffersNoAscent();
-    void everyShippedCatalogIsOffered();
-    void classIsPreselected();
-    void acceptingStoresTheChoice();
-    void noSelectionMeansNoAccept();
-    void theHintCountsItsNumbers();
+    void theSixCasesAreOneChoice();
+    void everyCaseOpensTheCatalogOfItsClass();
+    void theSummaryNamesWhatIsLearned();
+    void aMissingCatalogDisablesItsCases();
+    void theLastChoiceCanBePreselected();
+    void withoutCatalogsNothingIsAccepted();
 };
 
 void StartupDialogTest::partsFollowTheAmtsblatt()
@@ -57,160 +80,152 @@ void StartupDialogTest::partsFollowTheAmtsblatt()
     const QVector<StartupDialog::Combination> all = StartupDialog::combinations();
     QCOMPARE(all.size(), 6);
 
-    // Wer die Klasse N hat, muss fuer E nur noch die Technik Klasse E
-    // beantworten. Frueher waren nur die drei vollstaendigen Pruefungen
-    // angeboten, wodurch der Assistent mehr verlangte als die Verfuegung.
-    QCOMPARE(all.at(3).label, QStringLiteral("Klasse N → E"));
+    // Aufstiege: N -> E nur E, N -> A die Teile E und A, E -> A nur A.
+    QCOMPARE(all.at(3).id, QStringLiteral("N-E"));
     QCOMPARE(all.at(3).targetClass, QStringLiteral("E"));
     QCOMPARE(all.at(3).parts, QVector<int>({3}));
 
-    QCOMPARE(all.at(4).label, QStringLiteral("Klasse N → A"));
+    QCOMPARE(all.at(4).id, QStringLiteral("N-A"));
     QCOMPARE(all.at(4).targetClass, QStringLiteral("A"));
     QCOMPARE(all.at(4).parts, QVector<int>({3, 4}));
 
-    QCOMPARE(all.at(5).label, QStringLiteral("Klasse E → A"));
+    QCOMPARE(all.at(5).id, QStringLiteral("E-A"));
     QCOMPARE(all.at(5).targetClass, QStringLiteral("A"));
     QCOMPARE(all.at(5).parts, QVector<int>({4}));
 
-    // Kein Aufstieg darf Teile verlangen, die die Vorstufe schon abdeckt.
+    // Kein Aufstieg verlangt Vorschriften, Betriebstechnik oder die Technik N:
+    // sie sind mit jeder bestandenen Klasse abgedeckt.
     for (int i = 3; i < all.size(); ++i) {
+        QVERIFY(all.at(i).ascent);
         QVERIFY2(!all.at(i).note.isEmpty(),
                  "ein Aufstieg muss erklaeren, was schon geprueft wurde");
         QVERIFY(!all.at(i).parts.contains(0));
         QVERIFY(!all.at(i).parts.contains(1));
+        QVERIFY(!all.at(i).parts.contains(2));
     }
 }
 
-void StartupDialogTest::labelsSpellThePartsOut()
+void StartupDialogTest::theSixCasesAreOneChoice()
 {
-    // "V + B + N" sagt einem Lernenden nichts. Jede Auswahl muss daher
-    // ausgeschrieben sagen, welche Teile gemeint sind.
-    const QVector<StartupDialog::Combination> all = StartupDialog::combinations();
-    for (const StartupDialog::Combination &combination : all) {
-        for (int part : combination.parts) {
-            Q_UNUSED(part);
-        }
-        QVERIFY(!combination.label.contains(QLatin1String("V + B"))
-                && !combination.label.contains(QLatin1String("Vorschriften +")));
+    // Eine Pruefung, nicht mehrere: frueher standen die Faelle als
+    // Kontrollkaestchen da, und bei mehreren Haken galt still der letzte.
+    StartupDialog dialog(allCatalogs());
+    const QList<QRadioButton *> buttons = dialog.findChildren<QRadioButton *>();
+    QCOMPARE(buttons.size(), 6);
+
+    int checked = 0;
+    for (const QRadioButton *button : buttons)
+        checked += button->isChecked() ? 1 : 0;
+    QCOMPARE(checked, 1);
+
+    QRadioButton *e = choice(dialog, QStringLiteral("Klasse E"));
+    QRadioButton *ascent = choice(dialog, QStringLiteral("Von Klasse E nach A"));
+    QVERIFY(e && ascent);
+    e->setChecked(true);
+    ascent->setChecked(true);
+    QVERIFY(!e->isChecked());
+}
+
+void StartupDialogTest::everyCaseOpensTheCatalogOfItsClass()
+{
+    // Die Klasse entscheidet ueber den Katalog; eine eigene Katalogwahl, die
+    // zum Fall nicht passt, gibt es nicht mehr.
+    const struct
+    {
+        const char *label;
+        const char *catalog;
+        QSet<int> parts;
+    } cases[] = {
+        {"Klasse N", "de-amateurfunk-N.xml", {0, 1, 2}},
+        {"Klasse E", "de-amateurfunk-E.xml", {0, 1, 2, 3}},
+        {"Klasse A", "de-amateurfunk-A.xml", {0, 1, 2, 3, 4}},
+        {"Von Klasse N nach E", "de-amateurfunk-E.xml", {3}},
+        {"Von Klasse N nach A", "de-amateurfunk-A.xml", {3, 4}},
+        {"Von Klasse E nach A", "de-amateurfunk-A.xml", {4}},
+    };
+    for (const auto &expected : cases) {
+        StartupDialog dialog(allCatalogs());
+        QRadioButton *button = choice(dialog, QString::fromUtf8(expected.label));
+        QVERIFY2(button, expected.label);
+        QVERIFY2(button->isEnabled(), expected.label);
+        button->setChecked(true);
+        dialog.accept();
+
+        const StartupDialog::Result result = dialog.result();
+        QVERIFY(result.accepted);
+        QCOMPARE(result.catalogPath, catalogPath(expected.catalog));
+        QCOMPARE(result.selectedParts, expected.parts);
+        QVERIFY(!result.combination.isEmpty());
+        QVERIFY(result.examDate.isValid());
     }
-    // Der Aufstieg von E nach A besteht allein aus der Technik Klasse A.
-    QCOMPARE(all.at(5).parts.size(), 1);
-
-    // Der Aufstieg von N nach A prueft zwei Teile, zeigt aber wie E nach A
-    // nur die Technik Klasse A. Der Unterschied steht im Hinweis, damit
-    // niemand eine fehlende Pruefungsteil A vermutet.
-    QCOMPARE(all.at(4).parts, QVector<int>({3, 4}));
-    QCOMPARE(all.at(4).shownParts, QVector<int>({4}));
-    QVERIFY2(all.at(4).note.contains(QStringLiteral("Technik Klasse E")),
-             qPrintable(all.at(4).note));
-
-    // Und diese Zeile steht auch wirklich so im Fenster. Sie braucht den
-    // Katalog der Klasse A, weil der N-Katalog keinen Teil A enthaelt.
-    StartupDialog dialog(allCatalogs());
-    auto *catalogs = dialog.findChild<QComboBox *>();
-    QVERIFY(catalogs);
-    catalogs->setCurrentIndex(2);
-    QString row;
-    for (const QCheckBox *box : dialog.findChildren<QCheckBox *>()) {
-        if (box->text().startsWith(QStringLiteral("Klasse N → A")))
-            row = box->text();
-    }
-    QVERIFY2(!row.isEmpty(), "die Zeile 'Klasse N → A' fehlt im Assistenten");
-    QVERIFY2(row.contains(QStringLiteral("Technik Klasse A"))
-                 && !row.contains(QStringLiteral("Technik Klasse E")),
-             qPrintable(row));
 }
 
-void StartupDialogTest::catalogNOffersNoAscent()
-{
-    // Der Katalog N enthaelt keinen Teil E; ein Aufstieg nach E oder A
-    // laesst sich damit nicht anbieten.
-    Catalog n;
-    QString error;
-    QVERIFY(CatalogXml::load(catalogPath("de-amateurfunk-N.xml"), &n, &error));
-    const QVector<StartupDialog::Combination> offered =
-        StartupDialog::combinationsFor(n);
-    QCOMPARE(offered.size(), 1);
-    QCOMPARE(offered.first().targetClass, QStringLiteral("N"));
-
-    Catalog e;
-    QVERIFY(CatalogXml::load(catalogPath("de-amateurfunk-E.xml"), &e, &error));
-    const QVector<StartupDialog::Combination> offeredE =
-        StartupDialog::combinationsFor(e);
-    // N vollstaendig, E vollstaendig, N -> E
-    QCOMPARE(offeredE.size(), 3);
-    QCOMPARE(offeredE.at(2).label, QStringLiteral("Klasse N → E"));
-
-    Catalog a;
-    QVERIFY(CatalogXml::load(catalogPath("de-amateurfunk-A.xml"), &a, &error));
-    QCOMPARE(StartupDialog::combinationsFor(a).size(), 6);
-}
-
-void StartupDialogTest::everyShippedCatalogIsOffered()
+void StartupDialogTest::theSummaryNamesWhatIsLearned()
 {
     StartupDialog dialog(allCatalogs());
-    auto *box = dialog.findChild<QComboBox *>();
-    QVERIFY(box);
-    QCOMPARE(box->count(), 3);
+
+    // Aufstieg N -> E: nur die Technik Klasse E, mit ihrer Fragenzahl.
+    choice(dialog, QStringLiteral("Von Klasse N nach E"))->setChecked(true);
+    QString text = summaryOf(dialog);
+    const int eQuestions = questionsInPart("de-amateurfunk-E.xml", 3);
+    QVERIFY2(text.contains(QStringLiteral("Technik Klasse E (%1 Fragen)").arg(eQuestions)),
+             qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("Vorschriften (")), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("Technik Klasse N (")), qPrintable(text));
+
+    // Klasse E von vorn: alle vier Teile, und die Summe stimmt.
+    choice(dialog, QStringLiteral("Klasse E"))->setChecked(true);
+    text = summaryOf(dialog);
+    int total = 0;
+    for (int part = 0; part < 4; ++part)
+        total += questionsInPart("de-amateurfunk-E.xml", part);
+    for (const QString &name : {QStringLiteral("Vorschriften"), QStringLiteral("Betriebstechnik"),
+                                QStringLiteral("Technik Klasse N"),
+                                QStringLiteral("Technik Klasse E")})
+        QVERIFY2(text.contains(name), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("Technik Klasse A")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("zusammen %1 Fragen").arg(total)), qPrintable(text));
+    QVERIFY2(!text.contains(QStringLiteral("%1")), qPrintable(text));
 }
 
-void StartupDialogTest::classIsPreselected()
+void StartupDialogTest::aMissingCatalogDisablesItsCases()
 {
-    StartupDialog dialog(allCatalogs());
-    auto *box = dialog.findChild<QComboBox *>();
-    QCOMPARE(box->currentData().toString(), catalogPath("de-amateurfunk-N.xml"));
-
-    const QList<QCheckBox *> parts = dialog.findChildren<QCheckBox *>();
-    // Katalog N kennt nur die vollstaendige N-Pruefung; Aufstiege nach E
-    // oder A sind ohne den passenden Fragenpool nicht anbietbar.
-    QCOMPARE(parts.size(), 1);
-    QVERIFY(parts.at(0)->isChecked());
-    QVERIFY(parts.at(0)->text().contains(QStringLiteral("N")));
+    // Nur der Katalog N ist da: alles, was E oder A braucht, ist nicht
+    // waehlbar, und die Vorauswahl faellt auf das, was geht.
+    StartupDialog dialog({catalogPath("de-amateurfunk-N.xml")});
+    QVERIFY(choice(dialog, QStringLiteral("Klasse N"))->isEnabled());
+    QVERIFY(choice(dialog, QStringLiteral("Klasse N"))->isChecked());
+    for (const QString &label : {QStringLiteral("Klasse E"), QStringLiteral("Klasse A"),
+                                 QStringLiteral("Von Klasse N nach E"),
+                                 QStringLiteral("Von Klasse N nach A"),
+                                 QStringLiteral("Von Klasse E nach A")})
+        QVERIFY2(!choice(dialog, label)->isEnabled(), qPrintable(label));
 }
 
-void StartupDialogTest::acceptingStoresTheChoice()
+void StartupDialogTest::theLastChoiceCanBePreselected()
 {
     StartupDialog dialog(allCatalogs());
+    dialog.preselect(QStringLiteral("N-A"));
+    QVERIFY(choice(dialog, QStringLiteral("Von Klasse N nach A"))->isChecked());
+
+    // Ein unbekannter oder nicht waehlbarer Fall aendert nichts.
+    dialog.preselect(QStringLiteral("gibt-es-nicht"));
+    QVERIFY(choice(dialog, QStringLiteral("Von Klasse N nach A"))->isChecked());
+
+    StartupDialog onlyN({catalogPath("de-amateurfunk-N.xml")});
+    onlyN.preselect(QStringLiteral("E-A"));
+    QVERIFY(choice(onlyN, QStringLiteral("Klasse N"))->isChecked());
+}
+
+void StartupDialogTest::withoutCatalogsNothingIsAccepted()
+{
+    StartupDialog dialog(QStringList{});
+    for (const QRadioButton *button : dialog.findChildren<QRadioButton *>())
+        QVERIFY(!button->isEnabled());
     dialog.accept();
-    QVERIFY(dialog.result().accepted);
-    QCOMPARE(dialog.result().selectedParts, QSet<int>({0, 1, 2}));
-    QCOMPARE(dialog.result().catalogPath, catalogPath("de-amateurfunk-N.xml"));
-    QVERIFY(dialog.result().examDate.isValid());
-}
-
-void StartupDialogTest::noSelectionMeansNoAccept()
-{
-    StartupDialog dialog(allCatalogs());
-    const QList<QCheckBox *> parts = dialog.findChildren<QCheckBox *>();
-    for (QCheckBox *box : parts)
-        box->setChecked(false);
-
-    dialog.accept();
-    // Ohne gewaehlte Pruefung gibt es nichts zu starten.
     QVERIFY(!dialog.result().accepted);
-}
-
-void StartupDialogTest::theHintCountsItsNumbers()
-{
-    StartupDialog dialog(allCatalogs());
-
-    // Der Hinweis nennt, wie viele der sechs moeglichen Pruefungen der
-    // Katalog hergibt. Ein frueherer Aufruf von tr() ohne arg() liess die
-    // Platzhalter "%1" und "%2" im Text stehen, die niemand versteht.
-    const QLabel *hint = nullptr;
-    for (const QLabel *label : dialog.findChildren<QLabel *>()) {
-        if (label->text().contains(QStringLiteral("passen zu diesem Katalog"))
-            || label->text().contains(QStringLiteral("Ohne Katalog"))) {
-            hint = label;
-            break;
-        }
-    }
-    QVERIFY2(hint, "der Assistent hat keinen Hinweis zu den Pruefungen");
-    const QString text = hint->text();
-    QVERIFY2(!text.contains(QStringLiteral("%1")) && !text.contains(QStringLiteral("%2")),
-             qPrintable(QStringLiteral("unersetzter Platzhalter im Hinweis: %1").arg(text)));
-    QVERIFY2(!text.contains(QStringLiteral("Fällen")), qPrintable(text));
-    QVERIFY(text.contains(QString::number(StartupDialog::combinations().size())));
+    QVERIFY2(summaryOf(dialog).contains(QStringLiteral("kein Fragenkatalog")),
+             qPrintable(summaryOf(dialog)));
 }
 
 QTEST_MAIN(StartupDialogTest)

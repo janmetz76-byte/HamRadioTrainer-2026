@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTableWidget>
 #include <QtTest>
@@ -94,6 +95,9 @@ private slots:
     void aRoundOnlyOverDueQuestionsStaysSmall();
     void thePartFilterNamesTheSheetWithoutTheRegulation();
     void theProgressReachesTheDisk();
+    void theSolutionWaitsForTheSelfReport();
+    void aRoundGivesTheQuestionTheWholeHeight();
+    void theSolutionCanBeSwitchedOff();
 };
 
 void LearningWidgetTest::initTestCase()
@@ -103,6 +107,7 @@ void LearningWidgetTest::initTestCase()
 
 void LearningWidgetTest::init()
 {
+    QSettings().remove(QStringLiteral("learnview/showSolution"));
     QFile::remove(QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
                       .filePath(QStringLiteral("fortschritt-de-n.json")));
 }
@@ -325,12 +330,138 @@ void LearningWidgetTest::theProgressReachesTheDisk()
             break;
         answers.last()->click();
         findButton(&widget, QStringLiteral("Geraten"))->click();
+        findButton(&widget, QStringLiteral("Nächste Frage"))->click();
 
         const ProgressLoad loaded = store.load(catalog);
         QCOMPARE(loaded.states.size(), step + 1);
     }
 
     QFile::remove(file);
+}
+
+void LearningWidgetTest::theSolutionWaitsForTheSelfReport()
+{
+    // Wie im Trainer von 2015: erst die Antwort waehlen, dann einschaetzen,
+    // wie sicher man war - und erst danach erfahren, ob sie stimmte. Wer die
+    // Loesung schon sieht, schaetzt nicht mehr sich selbst ein.
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    LearningWidget widget;
+    widget.setCatalog(&catalog, catalogPathFor("de-amateurfunk-N.xml"));
+    findButton(&widget, QStringLiteral("Runde starten"))->click();
+
+    const QList<QAbstractButton *> answers = answerControls(&widget);
+    QVERIFY(answers.size() >= 2);
+    answers.first()->click();
+
+    // Noch keine Aufloesung: die Antworten sind weiter waehlbar, kein Haken,
+    // kein Text, und weiter geht es erst nach der Einschaetzung.
+    for (QAbstractButton *answer : answers)
+        QVERIFY(answer->isEnabled());
+    for (QLabel *label : widget.findChild<AnswerView *>()->findChildren<QLabel *>())
+        QVERIFY2(!(label->isVisible() && label->text() == QStringLiteral("✓")), "Loesung verraten");
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Antwort ")) == nullptr);
+    QVERIFY(!findButton(&widget, QStringLiteral("Nächste Frage"))->isEnabled());
+
+    // Die Wahl laesst sich vor der Einschaetzung noch aendern.
+    answers.at(1)->click();
+    QVERIFY(answers.at(1)->isChecked());
+
+    findButton(&widget, QStringLiteral("Unsicher"))->click();
+
+    // Jetzt die Aufloesung, mit dem angezeigten Buchstaben.
+    QLabel *feedback = findLabelStartingWith(&widget, QStringLiteral("Antwort B ist "));
+    QVERIFY2(feedback, "keine Rueckmeldung nach der Einschaetzung");
+    for (QAbstractButton *answer : answers)
+        QVERIFY(!answer->isEnabled());
+    QVERIFY(!findButton(&widget, QStringLiteral("Unsicher"))->isEnabled());
+    QVERIFY(findButton(&widget, QStringLiteral("Nächste Frage"))->isEnabled());
+    QCOMPARE(widget.scheduler().states().size(), 1);
+    QCOMPARE(widget.scheduler().states().first().confidence, Confidence::Unsure);
+
+    findButton(&widget, QStringLiteral("Nächste Frage"))->click();
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Frage 2 von")) != nullptr);
+}
+
+void LearningWidgetTest::aRoundGivesTheQuestionTheWholeHeight()
+{
+    // Bei normaler Fenstergroesse blieb der Frage neben Lernstufen und
+    // Teiltabelle nur ein Streifen. Waehrend der Runde tritt der Ueberblick
+    // deshalb zurueck und kommt danach mit den neuen Zahlen wieder.
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    LearningWidget widget;
+    widget.resize(1000, 650);
+    widget.setCatalog(&catalog, catalogPathFor("de-amateurfunk-N.xml"));
+    widget.show();
+    QWidget *overview = widget.findChild<QWidget *>(QStringLiteral("lernueberblick"));
+    QVERIFY(overview);
+    QVERIFY(overview->isVisible());
+
+    for (QSpinBox *spin : widget.findChildren<QSpinBox *>()) {
+        spin->setValue(1);
+        break;
+    }
+    findButton(&widget, QStringLiteral("Runde starten"))->click();
+    QVERIFY(!overview->isVisible());
+
+    // Die Frage bekommt dann mehr als die Haelfte der Hoehe.
+    QCoreApplication::processEvents();
+    auto *answers = widget.findChild<AnswerView *>();
+    QVERIFY(answers->parentWidget());
+    QWidget *scroll = answers->parentWidget()->parentWidget();
+    QVERIFY2(scroll->height() > widget.height() / 2,
+             qPrintable(QStringLiteral("%1 von %2").arg(scroll->height()).arg(widget.height())));
+
+    answerControls(&widget).first()->click();
+    findButton(&widget, QStringLiteral("Sicher"))->click();
+    findButton(&widget, QStringLiteral("Nächste Frage"))->click();
+    QVERIFY(overview->isVisible());
+}
+
+void LearningWidgetTest::theSolutionCanBeSwitchedOff()
+{
+    // Im Trainer von 2015 liess sich die Rueckmeldung abschalten. Dann gibt
+    // die Selbsteinschaetzung die Antwort ab und fuehrt gleich zur naechsten
+    // Frage; wie viele stimmten, steht erst am Ende der Runde.
+    Catalog catalog = loadClassCatalog("de-amateurfunk-N.xml");
+    LearningWidget widget;
+    widget.setCatalog(&catalog, catalogPathFor("de-amateurfunk-N.xml"));
+
+    QCheckBox *show = nullptr;
+    for (QCheckBox *box : widget.findChildren<QCheckBox *>()) {
+        if (box->text() == QStringLiteral("Lösung nach jeder Antwort zeigen"))
+            show = box;
+    }
+    QVERIFY(show);
+    QVERIFY2(show->isChecked(), "die Loesung wird standardmaessig gezeigt");
+    show->setChecked(false);
+
+    for (QSpinBox *spin : widget.findChildren<QSpinBox *>()) {
+        spin->setValue(2);
+        break;
+    }
+    findButton(&widget, QStringLiteral("Runde starten"))->click();
+
+    answerControls(&widget).first()->click();
+    findButton(&widget, QStringLiteral("Sicher"))->click();
+    // Keine Aufloesung, sondern gleich die zweite Frage.
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Antwort ")) == nullptr);
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Frage 2 von 2")) != nullptr);
+    for (QAbstractButton *answer : answerControls(&widget))
+        QVERIFY(answer->isEnabled());
+
+    answerControls(&widget).first()->click();
+    findButton(&widget, QStringLiteral("Sicher"))->click();
+    QVERIFY(findLabelStartingWith(&widget, QStringLiteral("Runde beendet:")) != nullptr);
+    QCOMPARE(widget.scheduler().states().size(), 2);
+
+    // Die Wahl bleibt fuer den naechsten Start gemerkt.
+    QVERIFY(!QSettings().value(QStringLiteral("learnview/showSolution"), true).toBool());
+    LearningWidget again;
+    for (QCheckBox *box : again.findChildren<QCheckBox *>()) {
+        if (box->text() == QStringLiteral("Lösung nach jeder Antwort zeigen"))
+            QVERIFY(!box->isChecked());
+    }
+    QSettings().remove(QStringLiteral("learnview/showSolution"));
 }
 
 QTEST_MAIN(LearningWidgetTest)

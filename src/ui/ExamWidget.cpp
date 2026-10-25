@@ -8,6 +8,7 @@
 
 #include "AnswerView.h"
 #include "exam/PaperBuilder.h"
+#include "learning/LearningStatistics.h"
 #include "learning/Scheduler.h"
 
 #include <QAbstractButton>
@@ -192,11 +193,13 @@ bool ExamWidget::startExam()
     PaperBuilder::Options options = PaperBuilder::examOptions(*m_catalog);
     // Nicht gewaehlte Teile bekommen keine Fragen. Damit entfaellt der ganze
     // Teil aus der Pruefung, statt mit einer leeren Seite durchzufallen.
-    if (!m_selectedParts.isEmpty()) {
-        for (int i = 0; i < options.questionsPerPart.size(); ++i) {
-            if (!m_selectedParts.contains(i))
-                options.questionsPerPart[i] = 0;
-        }
+    //
+    // Passt die Auswahl nicht zum Katalog, gilt der ganze Katalog - sonst
+    // entstuende eine Pruefung ohne eine einzige Frage.
+    const QSet<int> selected = effectiveParts(*m_catalog, m_selectedParts);
+    for (int i = 0; i < options.questionsPerPart.size(); ++i) {
+        if (!selected.contains(i))
+            options.questionsPerPart[i] = 0;
     }
     if (options.questionsPerPart.size() != m_catalog->parts.size()) {
         QMessageBox::warning(this, tr("Keine Prüfung möglich"),

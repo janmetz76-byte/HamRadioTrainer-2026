@@ -449,9 +449,12 @@ void LearningTest::guessedButCorrectStaysCloseToTheTop()
     Scheduler scheduler;
     answer(&scheduler, QStringLiteral("Q0001"), true, Confidence::Guessing);
     const QuestionState state = scheduler.stateFor(QStringLiteral("Q0001"));
+    // Der Treffer zaehlt, gilt aber nicht als Wissen: keine Stufe hoeher,
+    // keine Serie, und morgen ist die Frage wieder dran.
     QCOMPARE(state.timesCorrect, 1);
-    QCOMPARE(state.consecutiveCorrect, 1);
-    QCOMPARE(state.box, 1);
+    QCOMPARE(state.consecutiveCorrect, 0);
+    QCOMPARE(state.box, 0);
+    QCOMPARE(state.dueOn, QDate::currentDate().addDays(1));
     QCOMPARE(state.confidence, Confidence::Guessing);
 }
 

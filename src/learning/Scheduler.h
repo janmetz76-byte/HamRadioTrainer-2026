@@ -60,11 +60,11 @@ struct AnswerOutcome
 /// Keeps and advances the learning states of a catalog.
 ///
 /// The rules are deliberately simple and documented rather than tuned:
-///   * correct   -> box + 1 (capped), consecutiveCorrect + 1
+///   * correct, certain -> box + 3 (capped)
+///   * correct, unsure or without a self report -> box + 1
+///   * correct, guessed -> box unchanged, due again tomorrow: a guessed hit is
+///     counted in the hit rate but is not knowledge
 ///   * incorrect -> box = max(0, box - 2), consecutiveCorrect = 0
-///   * confidence raises the box gain: a correct answer the learner was certain
-///     of moves the question twice as far away as one they merely guessed, so a
-///     securely known question stays away longer
 class Scheduler
 {
 public:

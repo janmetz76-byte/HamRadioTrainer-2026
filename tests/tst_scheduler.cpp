@@ -79,6 +79,7 @@ private slots:
     void newQuestionsAreAskedFirst();
     void secureQuestionsAreAskedLessOften();
     void unsureCorrectAnswerStillComesBack();
+    void aGuessedHitIsNotKnowledge();
     void wrongAnswerLowersTheBox();
     void paperNeverDrawsLockedOrRetiredQuestions();
     void answersAreShuffledAndNotAlwaysFirst();
@@ -149,6 +150,35 @@ void SchedulerTest::unsureCorrectAnswerStillComesBack()
     reference.record({QStringLiteral("Q2"), true, Confidence::Certain});
     QVERIFY(scheduler.weightFor(state) > reference.weightFor(
                                                  reference.stateFor(QStringLiteral("Q2"))));
+}
+
+void SchedulerTest::aGuessedHitIsNotKnowledge()
+{
+    // Richtig geraten zaehlt in der Trefferquote, hebt die Frage aber nicht:
+    // sie bleibt auf ihrer Stufe und ist morgen wieder dran. Unsicher und
+    // richtig geht eine Stufe hoch, sicher und richtig drei.
+    Scheduler scheduler;
+    const QuestionState guessed =
+        scheduler.record({QStringLiteral("G"), true, Confidence::Guessing});
+    QCOMPARE(guessed.box, 0);
+    QCOMPARE(guessed.timesCorrect, 1);
+    QCOMPARE(guessed.consecutiveCorrect, 0);
+    QCOMPARE(guessed.dueOn, QDate::currentDate().addDays(1));
+
+    const QuestionState unsure = scheduler.record({QStringLiteral("U"), true, Confidence::Unsure});
+    QCOMPARE(unsure.box, 1);
+    const QuestionState certain =
+        scheduler.record({QStringLiteral("C"), true, Confidence::Certain});
+    QCOMPARE(certain.box, 3);
+
+    // Auch weiter oben bleibt eine geratene Frage stehen, statt aufzusteigen.
+    scheduler.record({QStringLiteral("U"), true, Confidence::Guessing});
+    QCOMPARE(scheduler.stateFor(QStringLiteral("U")).box, 1);
+
+    // Ohne Selbsteinschaetzung - aus der Pruefungssimulation - geht es wie
+    // bisher eine Stufe hoch.
+    const QuestionState exam = scheduler.record({QStringLiteral("P"), true, Confidence::Unknown});
+    QCOMPARE(exam.box, 1);
 }
 
 void SchedulerTest::wrongAnswerLowersTheBox()

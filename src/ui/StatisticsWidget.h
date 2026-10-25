@@ -38,6 +38,9 @@ public:
 
     void setCatalog(const Catalog *catalog, const QString &catalogPath);
     void setProgress(const QVector<QuestionState> &states);
+    /// Prüfungsteile to count, as indexes into the catalog's part list. Empty
+    /// counts the whole catalog.
+    void setSelectedParts(const QSet<int> &parts);
 
     /// Recomputes the figures from the stored progress.
     void refresh();
@@ -50,6 +53,7 @@ private:
 
     const Catalog *m_catalog = nullptr;
     Scheduler m_scheduler;
+    QSet<int> m_selectedParts;
     LearningStatistics m_statistics;
 
     QLabel *m_overall = nullptr;

@@ -22,17 +22,18 @@
 
 namespace {
 
-/// Bild, das selbst antwortet.
+/// Eine Antwortzeile, die als Ganzes antwortet.
 ///
-/// QLabel hat erst ab Qt 6.9 ein clicked-Signal. Damit die Bildantworten
-/// unabhaengig von der Qt-Version anklickbar sind, faengt diese Klasse den
-/// Mausklick selbst ab.
-class ClickableImageLabel : public QLabel
+/// Der Auswahlpunkt allein ist zu klein: bei einer mehrzeiligen Antwort steht
+/// er winzig daneben, und eine Bildantwort hat ausser ihm nichts zum Treffen.
+/// Buchstabe, Text und Bild lassen den Klick deshalb zur Zeile durch, und die
+/// Zeile loest die Auswahl aus.
+class AnswerRow : public QWidget
 {
     Q_OBJECT
 
 public:
-    using QLabel::QLabel;
+    using QWidget::QWidget;
 
 signals:
     void activated();
@@ -42,7 +43,7 @@ protected:
     {
         if (event->button() == Qt::LeftButton && rect().contains(event->pos()))
             emit activated();
-        QLabel::mouseReleaseEvent(event);
+        QWidget::mouseReleaseEvent(event);
     }
 };
 
@@ -172,7 +173,8 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
                                    ? &question->answers.at(answerIndex)
                                    : nullptr;
 
-        auto *row = new QWidget(this);
+        auto *row = new AnswerRow(this);
+        row->setCursor(Qt::PointingHandCursor);
         auto *rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(2, 2, 2, 2);
         rowLayout->setSpacing(6);
@@ -195,6 +197,7 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         badge->setFixedSize(24, 24);
         badge->setAlignment(Qt::AlignCenter);
         badge->setText(QString(QChar(QLatin1Char('A').unicode() + position)));
+        badge->setAttribute(Qt::WA_TransparentForMouseEvents);
         // Ueber die Palette statt ueber feste Farben, sonst waere das Kästchen
         // in einem dunklen Fenster ein heller Fleck.
         badge->setStyleSheet(QStringLiteral(
@@ -220,28 +223,28 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         if (!plainText.isEmpty()) {
             auto *label = new QLabel(row);
             label->setWordWrap(true);
+            label->setAttribute(Qt::WA_TransparentForMouseEvents);
             setQuestionText(label, plainText, question->textFormat);
             rowLayout->addWidget(label, 1);
         }
 
         const QPixmap answerImage = answer ? renderImage(answer->image) : QPixmap();
         if (!answerImage.isNull()) {
-            auto *imageLabel = new ClickableImageLabel(row);
+            auto *imageLabel = new QLabel(row);
+            imageLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
             imageLabel->setPixmap(answerImage);
             imageLabel->setAlignment(Qt::AlignLeft);
             // Ohne Text davor entfaellt der Einzug, der den Abstand zur
             // Auswahl herstellt.
             imageLabel->setIndent(plainText.isEmpty() ? 0 : 24);
-            imageLabel->setToolTip(QObject::tr("Antwort %1").arg(position + 1));
             rowLayout->addWidget(imageLabel, 1);
-
-            // Das Bild ist bei diesen Fragen das einzige, was man treffen
-            // kann. Es muss selbst antworten, sonst muesste man auf einen
-            // fingerbreiten Punkt links daneben zielen.
-            imageLabel->setCursor(Qt::PointingHandCursor);
-            connect(imageLabel, &ClickableImageLabel::activated, control,
-                    [control] { control->click(); });
         }
+        // Ein Klick irgendwo in der Zeile waehlt die Antwort. Ein gesperrter
+        // Knopf - nach dem Zeigen der Loesung - nimmt den Klick nicht an.
+        connect(row, &AnswerRow::activated, control, [control] {
+            if (control->isEnabled())
+                control->click();
+        });
 
         // The mark belongs at the end of the row. Without adding it to the
         // layout it would float over the selection control at position 0,0.
@@ -278,10 +281,8 @@ void AnswerView::setQuestion(const Question *question, const QVector<int> &order
         });
     }
 
-    // Die ganze Zeile faerbt sich mit der Auswahl, nicht nur der Punkt links.
-    // Ein Klick auf den Antworttext soll als Treffer gelten - bei einer
-    // mehrzeiligen Antwort ist der Punkt winzig daneben, und das Bild einer
-    // Bildantwort hat gar keinen.
+    // Die ganze Zeile faerbt sich mit der Auswahl, nicht nur der Punkt links:
+    // sie ist auch das, was man anklickt.
     const auto zeilenFarben = [this] {
         for (int position = 0; position < m_controls.size(); ++position) {
             QWidget *row = m_controls.at(position)->parentWidget();
@@ -326,6 +327,7 @@ void AnswerView::reveal(int correctPosition, int selectedPosition)
         QAbstractButton *control = m_controls.at(position);
         control->setEnabled(false);
         QWidget *row = control->parentWidget();
+        row->unsetCursor();
         if (position == correctPosition) {
             if (auto *mark = m_marks.value(position)) {
                 mark->setText(QStringLiteral("✓"));
@@ -352,8 +354,13 @@ QStringList AnswerView::badges() const
 
 void AnswerView::setAnswersEnabled(bool enabled)
 {
-    for (QAbstractButton *control : m_controls)
+    for (QAbstractButton *control : m_controls) {
         control->setEnabled(enabled);
+        if (enabled)
+            control->parentWidget()->setCursor(Qt::PointingHandCursor);
+        else
+            control->parentWidget()->unsetCursor();
+    }
 }
 
 } // namespace hrt

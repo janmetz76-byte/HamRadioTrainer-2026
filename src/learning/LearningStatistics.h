@@ -10,6 +10,7 @@
 #include "learning/Scheduler.h"
 
 #include <QDate>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -92,7 +93,18 @@ struct LearningStatistics
 /// A question counts as mastered once it reaches the second to last box, which
 /// corresponds to a 16 day spacing: from there on it comes back rarely and only
 /// to guard against forgetting.
+///
+/// With \a parts only those Prüfungsteile are counted, given as indexes into
+/// the catalog's part list; see effectiveParts().
 LearningStatistics computeStatistics(const Catalog &catalog, const Scheduler &scheduler,
-                                     const QDate &today = QDate::currentDate());
+                                     const QDate &today = QDate::currentDate(),
+                                     const QSet<int> &parts = {});
+
+/// The Prüfungsteile a selection covers in this catalog, as indexes.
+///
+/// A selection that names none of the catalog's parts - empty, or made for a
+/// catalog with more parts than this one - stands for all of them. A mismatch
+/// must never leave the learner with nothing to practise.
+QSet<int> effectiveParts(const Catalog &catalog, const QSet<int> &selected);
 
 } // namespace hrt

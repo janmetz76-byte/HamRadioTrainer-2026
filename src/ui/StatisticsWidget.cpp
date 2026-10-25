@@ -120,6 +120,12 @@ void StatisticsWidget::setProgress(const QVector<QuestionState> &states)
     refresh();
 }
 
+void StatisticsWidget::setSelectedParts(const QSet<int> &parts)
+{
+    m_selectedParts = parts;
+    refresh();
+}
+
 void StatisticsWidget::refresh()
 {
     if (!m_catalog) {
@@ -127,7 +133,8 @@ void StatisticsWidget::refresh()
         return;
     }
 
-    m_statistics = computeStatistics(*m_catalog, m_scheduler);
+    m_statistics = computeStatistics(*m_catalog, m_scheduler, QDate::currentDate(),
+                                     m_selectedParts);
 
     // Ohne Katalog steht hier nichts. Eine Nullzeile "0 von 0 Fragen" waere
     // eine Zahl, die nach einem Fehler aussieht.
