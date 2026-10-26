@@ -4,14 +4,16 @@
 # Baut die Installationspakete. Jedes Paket wird nach dem Bau geprüft: es muss
 # die drei Kataloge und alle 687 Bilder enthalten, sonst findet das
 # installierte Programm keine einzige Frage.
+#
+# Ein Versions-Tag (v0.1.0, ...) haengt die Pakete an das GitHub-Release
+# dieser Version. Die Android-APK baut tools/android-build.sh lokal; sie
+# kommt von Hand an dasselbe Release.
 
 name: Pakete
 
 on:
   push:
     tags: ['v*']
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -161,8 +163,8 @@ jobs:
       - name: Testsuite
         run: ctest --test-dir build -C Release --output-on-failure
 
-      - name: Installer bauen
-        run: cd build && cpack -G NSIS
+      - name: Installer und ZIP bauen
+        run: cd build && cpack -G "NSIS;ZIP"
 
       - name: Inhalt des Installers pruefen
         shell: pwsh
@@ -178,5 +180,36 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: build/*.exe
+          path: |
+            build/*.exe
+            build/*.zip
           retention-days: 7
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: pakete
+          merge-multiple: true
+
+      - name: An das Release haengen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ls -l pakete
+          # Gibt es das Release schon - etwa als Entwurf mit der APK -, kommen
+          # die Pakete dazu. Sonst entsteht ein Entwurf, der erst nach einer
+          # Durchsicht veroeffentlicht wird.
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+              --title "HamRadioTrainer 2026 ${GITHUB_REF_NAME#v}" --notes ""
+          fi
+          gh release upload "$GITHUB_REF_NAME" pakete/* --clobber
