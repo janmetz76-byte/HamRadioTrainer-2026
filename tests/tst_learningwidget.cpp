@@ -4,6 +4,7 @@
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
 // Software Foundation, either version 3 of the License, or (at your option) any later version.
+#include "core/AppIdentity.h"
 #include "AnswerView.h"
 #include "LearningWidget.h"
 
@@ -103,6 +104,9 @@ private slots:
 
 void LearningWidgetTest::initTestCase()
 {
+    // Ohne Organisations- und Programmnamen legt QSettings unter Windows
+    // nichts ab: die Wahl "Loesung zeigen" waere dort nie gemerkt worden.
+    hrt::setApplicationIdentity();
     QStandardPaths::setTestModeEnabled(true);
 }
 
