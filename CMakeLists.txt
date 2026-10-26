@@ -375,8 +375,20 @@ if(WIN32 AND NOT CMAKE_CROSSCOMPILING)
         TARGET HamRadioTrainer2026
         OUTPUT_SCRIPT deploy_script
         NO_UNSUPPORTED_PLATFORM_ERROR
-        NO_TRANSLATIONS)
+        NO_TRANSLATIONS
+        # windeployqt legte nur vc_redist.x64.exe bei, das niemand aufruft.
+        # Die Laufzeit-DLLs kommen stattdessen direkt neben das Programm.
+        DEPLOY_TOOL_OPTIONS --no-compiler-runtime)
     install(SCRIPT ${deploy_script})
+endif()
+
+# Visual-C++-Laufzeit (MSVCP140, VCRUNTIME140, ...) mitliefern: ohne sie
+# startet das Programm auf einem frischen Windows nicht. Die Basis-Laufzeit
+# (UCRT) ist ab Windows 10 Teil des Systems.
+if(MSVC)
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION ${CMAKE_INSTALL_BINDIR})
+    set(CMAKE_INSTALL_UCRT_LIBRARIES OFF)
+    include(InstallRequiredSystemLibraries)
 endif()
 # ---------------------------------------------------------------------------
 # CPack

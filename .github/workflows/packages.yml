@@ -201,6 +201,18 @@ jobs:
           $zip = "$($exe.FullName).zip"
           & "${env:ProgramFiles}\7-Zip\7z.exe" x $exe.FullName "-o$([IO.Path]::GetDirectoryName($zip))" | Out-Null
 
+      - name: Visual-C++-Laufzeit im ZIP pruefen
+        shell: pwsh
+        run: |
+          # Ohne diese DLLs startet das Programm auf einem frischen Windows nicht.
+          $zip = Get-ChildItem build -Filter 'hamradiotrainer-2026-*.zip' | Select-Object -First 1
+          if (-not $zip) { throw "kein ZIP erzeugt" }
+          $liste = & "${env:ProgramFiles}\7-Zip\7z.exe" l $zip.FullName
+          foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'msvcp140_1.dll') {
+            if (-not ($liste -match [regex]::Escape("bin\$dll"))) { throw "FEHLT im ZIP: $dll" }
+            Write-Host "ok: $dll"
+          }
+
       - name: Hochladen
         uses: actions/upload-artifact@v4
         with:
