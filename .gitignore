@@ -1,3 +1,9 @@
+# Signierschluessel gehoeren nie ins Repository
+*.p12
+*.jks
+*.keystore
+release.pass
+
 # Build-Verzeichnisse
 /build/
 /build-*/

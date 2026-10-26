@@ -4,12 +4,14 @@
 #
 # Baut unter Linux eine Android-APK.
 #
-#   tools/android-build.sh [setup|build|apk|install|all]     (Vorgabe: all)
+#   tools/android-build.sh [setup|build|apk|install|keygen|all]  (Vorgabe: all)
 #
 #   setup    laedt Qt fuer Android von download.qt.io
 #   build    konfiguriert und baut nach build-android-<abi>/
-#   apk      packt die APK und signiert sie mit dem Debug-Schluessel
+#   apk      packt die APK und signiert sie: mit dem Release-Schluessel, wenn
+#            es ihn gibt, sonst mit dem Debug-Schluessel
 #   install  spielt die APK per adb auf das angeschlossene Geraet
+#   keygen   legt den Release-Schluessel an (einmalig)
 #   all      setup, build und apk
 #
 # Voraussetzungen: Android SDK mit NDK und Build-Tools, JDK 17, 7z, curl und
@@ -23,6 +25,10 @@
 #                    (Vorgabe: ~/.local/share/hamradiotrainer-cross)
 #   ANDROID_SDK_ROOT Android SDK (Vorgabe: ~/Android/Sdk)
 #   ANDROID_NDK_ROOT Android NDK (Vorgabe: das neueste im SDK)
+#   HRT_ANDROID_KEYSTORE  Release-Schluessel (Vorgabe:
+#                    ~/.local/share/hamradiotrainer-release/release.p12);
+#                    das Passwort steht in derselben Ablage in release.pass
+#   HRT_ANDROID_SIGNING   "debug" erzwingt den Debug-Schluessel
 
 set -euo pipefail
 
@@ -40,6 +46,11 @@ QT_DIR="$CROSS_HOME/qt-$QT_VERSION-android-$QT_ABI"
 SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
 # Qt Quick (qtdeclarative) traegt die Handy-Oberflaeche.
 QT_MODULES="qtbase qtsvg qtdeclarative"
+# Der Release-Schluessel liegt bewusst ausserhalb des Quellbaums: wer ihn
+# hat, kann Updates fuer jede installierte App ausliefern.
+RELEASE_KEYSTORE="${HRT_ANDROID_KEYSTORE:-${XDG_DATA_HOME:-$HOME/.local/share}/hamradiotrainer-release/release.p12}"
+RELEASE_PASS="$(dirname "$RELEASE_KEYSTORE")/release.pass"
+RELEASE_ALIAS="hrt2026"
 
 die() { echo "Fehler: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -156,23 +167,69 @@ cmd_apk() {
     [[ -n "$unsigned" ]] || die "keine APK gefunden unter $BUILD_DIR"
 
     # Eine Release-APK ist unsigniert und laesst sich so nicht installieren.
-    # Der Debug-Schluessel genuegt fuer das eigene Geraet und den Emulator;
-    # fuer den Play Store braucht es einen eigenen Schluessel.
-    local keystore="$HOME/.android/debug.keystore"
-    if [[ ! -f "$keystore" ]]; then
-        info "Lege den Android-Debug-Schluessel an"
-        mkdir -p "$(dirname "$keystore")"
-        keytool -genkeypair -keystore "$keystore" -storepass android -keypass android \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US" >/dev/null
+    # Veroeffentlicht wird nur mit dem Release-Schluessel: Android nimmt ein
+    # Update nur an, wenn es mit demselben Schluessel signiert ist wie die
+    # installierte App. Der Debug-Schluessel bleibt fuer Versuche ohne ihn.
+    local sign_args
+    if [[ "${HRT_ANDROID_SIGNING:-}" != "debug" && -f "$RELEASE_KEYSTORE" ]]; then
+        [[ -f "$RELEASE_PASS" ]] || die "Passwortdatei fehlt: $RELEASE_PASS"
+        info "Signiere mit dem Release-Schluessel"
+        # Kein --key-pass: bei PKCS12 ist es dasselbe Passwort, und apksigner
+        # laese es sonst ein zweites Mal aus derselben Datei - hinter dem Ende.
+        sign_args=(--ks "$RELEASE_KEYSTORE" --ks-key-alias "$RELEASE_ALIAS"
+                   --ks-pass "file:$RELEASE_PASS")
+    else
+        local keystore="$HOME/.android/debug.keystore"
+        if [[ ! -f "$keystore" ]]; then
+            info "Lege den Android-Debug-Schluessel an"
+            mkdir -p "$(dirname "$keystore")"
+            keytool -genkeypair -keystore "$keystore" -storepass android -keypass android \
+                -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US" >/dev/null
+        fi
+        info "Signiere mit dem Debug-Schluessel - nicht zur Veroeffentlichung"
+        sign_args=(--ks "$keystore" --ks-key-alias androiddebugkey
+                   --ks-pass pass:android --key-pass pass:android)
     fi
     rm -f "$OUT_APK"
     "$BUILD_TOOLS/zipalign" -f -p 4 "$unsigned" "$OUT_APK.aligned"
-    "$BUILD_TOOLS/apksigner" sign --ks "$keystore" --ks-pass pass:android \
-        --key-pass pass:android --ks-key-alias androiddebugkey \
-        --out "$OUT_APK" "$OUT_APK.aligned"
+    "$BUILD_TOOLS/apksigner" sign "${sign_args[@]}" --out "$OUT_APK" "$OUT_APK.aligned"
     rm -f "$OUT_APK.aligned" "$OUT_APK.idsig"
+    "$BUILD_TOOLS/apksigner" verify --print-certs "$OUT_APK" | grep -m2 -E "DN:|SHA-256"
     info "Fertig: $OUT_APK ($(du -h "$OUT_APK" | cut -f1))"
+}
+
+# ---------------------------------------------------------------------------
+# keygen
+# ---------------------------------------------------------------------------
+cmd_keygen() {
+    command -v keytool >/dev/null || die "keytool fehlt (gehoert zum JDK)"
+    command -v openssl >/dev/null || die "openssl fehlt"
+    [[ -e "$RELEASE_KEYSTORE" ]] && die "Release-Schluessel gibt es schon: $RELEASE_KEYSTORE"
+
+    local dir
+    dir="$(dirname "$RELEASE_KEYSTORE")"
+    mkdir -p "$dir"
+    chmod 700 "$dir"
+    # Ein zufaelliges Passwort in einer Datei, die nur der Besitzer lesen
+    # kann. So taucht es weder in der Prozessliste noch im Verlauf auf.
+    ( umask 077; openssl rand -base64 33 | tr -d '\n' > "$RELEASE_PASS" )
+
+    info "Lege den Release-Schluessel an"
+    # PKCS12, RSA 4096, gueltig rund 30 Jahre: Android verlangt, dass jedes
+    # Update mit demselben Schluessel signiert ist, solange es die App gibt.
+    keytool -genkeypair -storetype PKCS12 -keystore "$RELEASE_KEYSTORE" \
+        -storepass:file "$RELEASE_PASS" -keypass:file "$RELEASE_PASS" \
+        -alias "$RELEASE_ALIAS" -keyalg RSA -keysize 4096 -validity 11000 \
+        -dname "CN=HamRadioTrainer 2026,OU=Jan Metz - DC6DX,O=hrt2026.de,C=DE" >/dev/null
+    chmod 600 "$RELEASE_KEYSTORE"
+
+    keytool -list -v -storetype PKCS12 -keystore "$RELEASE_KEYSTORE" \
+        -storepass:file "$RELEASE_PASS" -alias "$RELEASE_ALIAS" \
+        | grep -E "Eigent|Owner|SHA256|Gültig|Valid"
+    info "Schluessel: $RELEASE_KEYSTORE"
+    info "Passwort:   $RELEASE_PASS"
+    info "Beide Dateien sicher aufbewahren. Ohne sie lassen sich keine Updates mehr ausliefern."
 }
 
 # ---------------------------------------------------------------------------
@@ -189,6 +246,7 @@ case "${1:-all}" in
     build)   cmd_build ;;
     apk)     cmd_apk ;;
     install) cmd_install ;;
+    keygen)  cmd_keygen ;;
     all)     cmd_setup; cmd_build; cmd_apk ;;
-    *)       sed -n '5,13p' "$0"; exit 1 ;;
+    *)       sed -n '5,15p' "$0"; exit 1 ;;
 esac
