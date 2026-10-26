@@ -205,9 +205,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
+          # Nur Installer und ZIP: im Bauverzeichnis liegen auch die
+          # Testprogramme als .exe.
           path: |
-            build/*.exe
-            build/*.zip
+            build/hamradiotrainer-2026-*.exe
+            build/hamradiotrainer-2026-*.zip
           retention-days: 7
 
   release:
