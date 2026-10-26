@@ -16,7 +16,7 @@ void setApplicationIdentity()
     QCoreApplication::setOrganizationName(QStringLiteral("HamRadioTrainer"));
     QCoreApplication::setOrganizationDomain(QStringLiteral("hamradiotrainer.org"));
     QCoreApplication::setApplicationName(QStringLiteral("HamRadioTrainer 2026"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0-dev"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(HRT_VERSION_STRING));
 }
 
 } // namespace hrt

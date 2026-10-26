@@ -11,7 +11,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(HamRadioTrainer2026
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "HamRadioTrainer 2026 - Lern- und Pruefungstrainer fuer den Amateurfunk"
     HOMEPAGE_URL "https://hamradiotrainer.org/"
     LANGUAGES CXX)
@@ -220,12 +220,15 @@ if(ANDROID)
                 "${HRT_ANDROID_PACKAGE_DIR}/assets/catalogs"
         COMMENT "Android-Paketquellen und Fragenkataloge bereitstellen")
     add_dependencies(HamRadioTrainer2026 hrt_android_assets)
+    # Android verlangt eine mit jeder Version wachsende Zahl: 0.1.1 -> 101.
+    math(EXPR hrt_android_version_code
+        "${PROJECT_VERSION_MAJOR} * 10000 + ${PROJECT_VERSION_MINOR} * 100 + ${PROJECT_VERSION_PATCH}")
     set_target_properties(HamRadioTrainer2026 PROPERTIES
         QT_ANDROID_PACKAGE_SOURCE_DIR "${HRT_ANDROID_PACKAGE_DIR}"
         QT_ANDROID_PACKAGE_NAME "org.hamradiotrainer.hamradiotrainer2026"
         QT_ANDROID_APP_NAME "HamRadioTrainer 2026"
         QT_ANDROID_VERSION_NAME "${PROJECT_VERSION}"
-        QT_ANDROID_VERSION_CODE 1)
+        QT_ANDROID_VERSION_CODE ${hrt_android_version_code})
 endif()
 
 # ---------------------------------------------------------------------------
@@ -413,7 +416,7 @@ set(CPACK_PACKAGE_DESCRIPTION
     "HamRadioTrainer 2026 bereitet auf die Amateurfunkprüfungen der Klassen N, E "
     "und A vor. Der Fragenkatalog entspricht der dritten Auflage der "
     "Bundesnetzagentur, der Prüfungsumfang der Amtsblatt-Verfügung 29/2024.")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/hamradiotrainer/hamradiotrainer-2026")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://hrt2026.de")
 # Ein .deb braucht zwingend eine erreichbare Maintainer-Adresse, sonst bricht
 # der Build ab.
 set(CPACK_PACKAGE_CONTACT "jan@dc6dx.de")

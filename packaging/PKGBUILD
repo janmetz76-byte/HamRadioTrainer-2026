@@ -15,11 +15,11 @@
 # davon gestrichen, meldet pacman das beim Entfernen.
 
 pkgname=hamradiotrainer-2026
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Lern- und Prüfungstrainer für den Amateurfunk nach Amtsblatt-Verfügung 29/2024"
 arch=('x86_64')
-url="https://github.com/hamradiotrainer/hamradiotrainer-2026"
+url="https://hrt2026.de"
 license=('GPL3')
 # Die Kataloge unterstehen der Lizenz DL-DE-BY-2.0 der Bundesnetzagentur und
 # sind als Quelltext enthalten, deshalb gehört die ganze Anwendung unter GPL3.
