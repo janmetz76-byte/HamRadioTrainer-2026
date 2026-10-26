@@ -161,11 +161,17 @@ jobs:
         run: cmake --build build --config Release
 
       - name: Testsuite
+        env:
+          # Die unsichtbare Testplattform sucht Schriften im Qt-Verzeichnis,
+          # wo keine liegen; ohne sie stimmen die Masse nicht.
+          QT_QPA_FONTDIR: C:\Windows\Fonts
         run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Testprotokolle bei Fehlern
         if: failure()
         shell: pwsh
+        env:
+          QT_QPA_FONTDIR: C:\Windows\Fonts
         run: |
           # Unter Windows erscheint die Ausgabe der Qt-Tests nicht im
           # ctest-Protokoll. In eine Datei geschrieben ist sie lesbar.

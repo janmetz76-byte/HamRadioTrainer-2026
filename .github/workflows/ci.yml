@@ -57,6 +57,10 @@ jobs:
 
       - name: Tests ausführen
         working-directory: build
+        env:
+          # Die unsichtbare Testplattform sucht unter Windows Schriften im
+          # Qt-Verzeichnis, wo keine liegen; ohne sie stimmen die Masse nicht.
+          QT_QPA_FONTDIR: ${{ runner.os == 'Windows' && 'C:\Windows\Fonts' || '' }}
         run: ctest --output-on-failure -C Release
 
       - name: Katalogwerkzeug prüfen
