@@ -63,6 +63,8 @@ struct LearningStatistics
     /// counted here, they have their own figure "fresh": "due" only asks which
     /// repetitions the Leitner spacing offers today.
     int due = 0;
+    /// Questions answered for the first time today.
+    int newToday = 0;
 
     int timesAnswered = 0;
     int timesCorrect = 0;

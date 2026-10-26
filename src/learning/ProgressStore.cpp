@@ -124,6 +124,8 @@ ProgressLoad ProgressStore::load(const Catalog &catalog) const
         state.timesAnswered = qMax(0, entry.value(QStringLiteral("answered")).toInt());
         state.timesCorrect = qMax(0, entry.value(QStringLiteral("correct")).toInt());
         state.consecutiveCorrect = qMax(0, entry.value(QStringLiteral("streak")).toInt());
+        // Aeltere Dateien kennen den ersten Tag nicht; er bleibt dann leer.
+        state.firstSeen = dateFromString(entry.value(QStringLiteral("firstSeen")).toString());
         state.lastSeen = dateFromString(entry.value(QStringLiteral("lastSeen")).toString());
         state.dueOn = dateFromString(entry.value(QStringLiteral("dueOn")).toString());
         const int confidence = entry.value(QStringLiteral("confidence")).toInt(-1);
@@ -179,6 +181,8 @@ bool ProgressStore::save(const Catalog &catalog, const QVector<QuestionState> &s
         entry.insert(QStringLiteral("answered"), state.timesAnswered);
         entry.insert(QStringLiteral("correct"), state.timesCorrect);
         entry.insert(QStringLiteral("streak"), state.consecutiveCorrect);
+        if (state.firstSeen.isValid())
+            entry.insert(QStringLiteral("firstSeen"), dateToString(state.firstSeen));
         entry.insert(QStringLiteral("lastSeen"), dateToString(state.lastSeen));
         entry.insert(QStringLiteral("dueOn"), dateToString(state.dueOn));
         entry.insert(QStringLiteral("confidence"), int(state.confidence));

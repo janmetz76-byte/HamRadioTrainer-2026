@@ -90,6 +90,47 @@ Page {
                 }
             }
 
+            // Was der Pruefungstermin heute verlangt. Ohne Termin nicht da.
+            Pane {
+                id: planPane
+                readonly property var plan: page.stats.plan || {}
+                visible: plan.active === true
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Material.elevation: 1
+                ColumnLayout {
+                    width: parent.width
+                    spacing: 8
+                    Label {
+                        text: qsTr("Bis zur Prüfung")
+                        font.weight: Font.Medium
+                    }
+                    Label {
+                        readonly property var plan: planPane.plan
+                        text: plan.fresh === 0 && plan.newToday === 0
+                                  ? qsTr("Alle Fragen sind mindestens einmal gelernt. Jetzt wiederholen, was noch nicht sitzt.")
+                              : plan.finalPhase
+                                  ? qsTr("Schlussphase: Unsicheres und Falsches kommt zuerst, danach die %1 noch nie gefragten Fragen.").arg(plan.fresh)
+                              : plan.newRemainingToday === 0
+                                  ? qsTr("Tagesziel erreicht: %1 neue Fragen heute.").arg(plan.newToday)
+                                  : qsTr("Tagesziel: %1 neue Fragen, davon %2 geschafft.").arg(plan.dailyNewTarget).arg(plan.newToday)
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                    ProgressBar {
+                        from: 0
+                        to: 100
+                        value: planPane.plan.readiness || 0
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: qsTr("Prüfungsreife: %1 % der Fragen gefestigt").arg(Math.round(planPane.plan.readiness || 0))
+                        opacity: 0.75
+                    }
+                }
+            }
+
             Button {
                 text: qsTr("Weiterlernen")
                 highlighted: true

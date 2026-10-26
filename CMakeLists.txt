@@ -55,6 +55,7 @@ add_library(hrt_core STATIC
     src/learning/Scheduler.cpp
     src/learning/ProgressStore.cpp
     src/learning/LearningStatistics.cpp
+    src/learning/StudyPlan.cpp
     src/learning/StudySession.cpp
     src/exam/PaperBuilder.cpp
     src/exam/ExamSession.cpp)

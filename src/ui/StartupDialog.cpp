@@ -94,8 +94,9 @@ StartupDialog::StartupDialog(const QStringList &catalogPaths, QWidget *parent)
     layout->addLayout(dateRow);
 
     auto *dateHint = new QLabel(
-        tr("Der Termin wird nur angezeigt, zum Beispiel als Countdown. Er ändert nicht, "
-           "welche Fragen gestellt werden."),
+        tr("Mit Termin plant das Programm darauf hin: ein Tagesziel für neue Fragen, keine "
+           "Wiederholung erst nach der Prüfung und in der letzten Woche zuerst, was noch "
+           "nicht sitzt."),
         this);
     dateHint->setWordWrap(true);
     dateHint->setStyleSheet(QStringLiteral("color: palette(mid);"));

@@ -42,6 +42,7 @@ struct QuestionState
     int timesAnswered = 0;
     int timesCorrect = 0;
     int consecutiveCorrect = 0;
+    QDate firstSeen;            ///< first answer; invalid when never seen or unknown
     QDate lastSeen;             ///< invalid means never seen
     QDate dueOn;                ///< invalid means due immediately
     Confidence confidence = Confidence::Unknown;
@@ -65,15 +66,36 @@ struct AnswerOutcome
 ///   * correct, guessed -> box unchanged, due again tomorrow: a guessed hit is
 ///     counted in the hit rate but is not knowledge
 ///   * incorrect -> box = max(0, box - 2), consecutiveCorrect = 0
+///
+/// With an exam date the schedule works towards that day:
+///   * no repetition is planned for the exam day or later. A spacing that
+///     would reach that far is cut to half the remaining time, in the final
+///     phase to the day before the exam, so every question comes back once
+///     more before the exam
+///   * in the final phase the weak questions - answered, but wrong, guessed,
+///     unsure or in a low box - come before the never seen ones
 class Scheduler
 {
 public:
     /// Number of Leitner boxes.
     static constexpr int MaxBox = 5;
+    /// Days before the exam that count as the final phase, the exam day
+    /// included.
+    static constexpr int FinalPhaseDays = 7;
 
-    explicit Scheduler(QVector<QuestionState> states = {});
+    explicit Scheduler(QVector<QuestionState> states = {}, QDate examDate = {});
 
     const QVector<QuestionState> &states() const { return m_states; }
+
+    /// The exam the schedule works towards. Invalid means none: the spacing
+    /// is the plain Leitner one.
+    QDate examDate() const { return m_examDate; }
+    void setExamDate(const QDate &date) { m_examDate = date; }
+
+    /// Days from \a today to the exam, -1 without an exam date or after it.
+    int daysToExam(const QDate &today = QDate::currentDate()) const;
+    /// True in the last FinalPhaseDays days up to and including the exam day.
+    bool inFinalPhase(const QDate &today = QDate::currentDate()) const;
 
     QuestionState stateFor(const QString &questionId) const;
 
@@ -98,13 +120,16 @@ public:
     /// Number of questions per Leitner box, for the statistics view.
     QVector<int> distribution() const;
 
-    /// Forgets all progress.
+    /// Forgets all progress. The exam date stays.
     void reset();
 
 private:
     QuestionState *findOrCreate(const QString &questionId);
+    int spacingTowardsExam(int days, const QDate &today) const;
+    int finalPhaseTier(const QuestionState &state, const QDate &today) const;
 
     QVector<QuestionState> m_states;
+    QDate m_examDate;
 };
 
 } // namespace hrt

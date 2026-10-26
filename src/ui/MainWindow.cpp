@@ -804,6 +804,11 @@ void MainWindow::applySelectedParts(const QSet<int> &parts)
 
 void MainWindow::updateExamCountdown()
 {
+    // Der Termin steuert auch das Lernen: Abstaende der Wiederholungen,
+    // Reihenfolge in der Schlussphase und das Tagesziel.
+    m_learning->setExamDate(m_examDate);
+    m_exam->setExamDate(m_examDate);
+
     const QDate date = m_examDate;
     if (!date.isValid()) {
         m_examDateLabel->setText(tr("Kein Prüfungstermin hinterlegt"));

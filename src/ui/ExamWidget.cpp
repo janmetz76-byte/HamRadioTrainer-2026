@@ -222,7 +222,7 @@ void ExamWidget::setCatalog(const Catalog *catalog, const QString &catalogPath)
 
 void ExamWidget::setProgress(const QVector<QuestionState> &states)
 {
-    m_scheduler = Scheduler(states);
+    m_scheduler = Scheduler(states, m_scheduler.examDate());
 }
 
 void ExamWidget::setSelectedParts(const QSet<int> &parts)

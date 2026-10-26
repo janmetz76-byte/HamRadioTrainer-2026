@@ -85,6 +85,8 @@ LearningStatistics computeStatistics(const Catalog &catalog, const Scheduler &sc
                 }
 
                 ++statistics.answered;
+                if (state.firstSeen == today)
+                    ++statistics.newToday;
                 statistics.timesAnswered += state.timesAnswered;
                 statistics.timesCorrect += state.timesCorrect;
                 ++statistics.byBox[qBound(0, state.box, Scheduler::MaxBox)];

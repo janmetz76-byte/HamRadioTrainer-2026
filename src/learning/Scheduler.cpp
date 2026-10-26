@@ -28,9 +28,53 @@ QString confidenceToString(Confidence value)
     return QStringLiteral("unbekannt");
 }
 
-Scheduler::Scheduler(QVector<QuestionState> states)
-    : m_states(std::move(states))
+Scheduler::Scheduler(QVector<QuestionState> states, QDate examDate)
+    : m_states(std::move(states)), m_examDate(examDate)
 {
+}
+
+int Scheduler::daysToExam(const QDate &today) const
+{
+    if (!m_examDate.isValid())
+        return -1;
+    const qint64 days = today.daysTo(m_examDate);
+    return days < 0 ? -1 : int(days);
+}
+
+bool Scheduler::inFinalPhase(const QDate &today) const
+{
+    const int days = daysToExam(today);
+    return days >= 0 && days < FinalPhaseDays;
+}
+
+int Scheduler::spacingTowardsExam(int days, const QDate &today) const
+{
+    // Eine Wiederholung am Pruefungstag oder danach nuetzt fuer die Pruefung
+    // nichts mehr. Bis zur Schlussphase kommt die Frage nach der halben
+    // Restzeit wieder, darin am Tag vor der Pruefung. Am letzten Tag davor
+    // gibt es keinen frueheren Termin mehr; dann bleibt der normale Abstand.
+    const int left = daysToExam(today);
+    if (left <= 1 || days < left)
+        return days;
+    if (inFinalPhase(today))
+        return left - 1;
+    return std::max(1, left / 2);
+}
+
+int Scheduler::finalPhaseTier(const QuestionState &state, const QDate &today) const
+{
+    // Ausserhalb der Schlussphase zaehlt allein das Gewicht.
+    if (!inFinalPhase(today))
+        return 0;
+    // Kurz vor der Pruefung zuerst, was schon einmal gefragt wurde und nicht
+    // sitzt. Neue Fragen danach: auch sie koennen in der Pruefung kommen.
+    // Heute schon Gefragtes reiht sich hinten ein, sonst kaeme dieselbe Frage
+    // in jeder Runde des Tages zuerst.
+    if (state.isNew())
+        return 1;
+    const bool weak = state.box <= 1 || state.confidence == Confidence::Guessing
+                      || state.confidence == Confidence::Unsure;
+    return weak && state.lastSeen != today ? 0 : 2;
 }
 
 QuestionState Scheduler::stateFor(const QString &questionId) const
@@ -61,6 +105,8 @@ const QuestionState &Scheduler::record(const AnswerOutcome &outcome)
     QuestionState *state = findOrCreate(outcome.questionId);
     const QDate today = QDate::currentDate();
 
+    if (state->timesAnswered == 0)
+        state->firstSeen = today;
     ++state->timesAnswered;
     state->confidence = outcome.confidence;
     state->lastSeen = today;
@@ -93,7 +139,7 @@ const QuestionState &Scheduler::record(const AnswerOutcome &outcome)
     int days = daysPerBox[std::clamp(state->box, 0, MaxBox)];
     if (outcome.correct && guessed)
         days = std::max(days, 1);
-    state->dueOn = today.addDays(days);
+    state->dueOn = today.addDays(spacingTowardsExam(days, today));
 
     return *state;
 }
@@ -153,20 +199,25 @@ QVector<QString> Scheduler::questionsByPriority(const QStringList &candidateIds,
 {
     struct Scored
     {
+        int tier;
         double weight;
         size_t mix;
         QString id;
     };
+    const QDate today = QDate::currentDate();
     QVector<Scored> scored;
     scored.reserve(candidateIds.size());
     for (const QString &id : candidateIds) {
         // Gleich gewichtete Fragen nach einem je Runde anderen Schluessel:
         // sonst begann jede Runde eines neuen Katalogs mit VA101, VA102, ...
         const size_t mix = shuffleSeed != 0 ? qHash(id, size_t(shuffleSeed)) : 0;
-        scored.append({weightFor(stateFor(id)), mix, id});
+        const QuestionState state = stateFor(id);
+        scored.append({finalPhaseTier(state, today), weightFor(state), mix, id});
     }
 
     std::sort(scored.begin(), scored.end(), [](const Scored &lhs, const Scored &rhs) {
+        if (lhs.tier != rhs.tier)
+            return lhs.tier < rhs.tier;
         if (lhs.weight != rhs.weight)
             return lhs.weight > rhs.weight;
         if (lhs.mix != rhs.mix)

@@ -167,7 +167,7 @@ Page {
             }
 
             Label {
-                text: qsTr("Der Termin wird nur als Countdown angezeigt. Er ändert nicht, welche Fragen gestellt werden.")
+                text: qsTr("Mit Termin plant die App darauf hin: ein Tagesziel für neue Fragen, keine Wiederholung erst nach der Prüfung und in der letzten Woche zuerst, was noch nicht sitzt.")
                 wrapMode: Text.WordWrap
                 opacity: 0.6
                 font.pixelSize: 13

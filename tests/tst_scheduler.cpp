@@ -8,7 +8,9 @@
 #include "core/Catalog.h"
 #include "core/CatalogXml.h"
 #include "exam/PaperBuilder.h"
+#include "learning/LearningStatistics.h"
 #include "learning/Scheduler.h"
+#include "learning/StudyPlan.h"
 #include "learning/StudySession.h"
 
 #include <QHash>
@@ -84,6 +86,9 @@ private slots:
     void unsureCorrectAnswerStillComesBack();
     void aGuessedHitIsNotKnowledge();
     void wrongAnswerLowersTheBox();
+    void noRepetitionIsPlannedAfterTheExam();
+    void finalPhaseAsksWeakQuestionsFirst();
+    void dailyQuotaSpreadsTheNewQuestions();
     void paperNeverDrawsLockedOrRetiredQuestions();
     void answersAreShuffledAndNotAlwaysFirst();
     void answerOrderIsReproducible();
@@ -551,6 +556,107 @@ void SchedulerTest::paperIsReproducibleForOneSeed()
     for (int i = 0; !differs && i < a.questions.size(); ++i)
         differs = a.questions.at(i).questionId != c.questions.at(i).questionId;
     QVERIFY(differs);
+}
+
+namespace {
+
+QuestionState seenState(const QString &id, int box, Confidence confidence, int daysAgo)
+{
+    QuestionState state;
+    state.questionId = id;
+    state.box = box;
+    state.timesAnswered = 1;
+    state.timesCorrect = box > 0 ? 1 : 0;
+    state.confidence = confidence;
+    state.firstSeen = QDate::currentDate().addDays(-daysAgo);
+    state.lastSeen = state.firstSeen;
+    state.dueOn = state.lastSeen;
+    return state;
+}
+
+} // namespace
+
+void SchedulerTest::noRepetitionIsPlannedAfterTheExam()
+{
+    const QDate today = QDate::currentDate();
+    const auto dueAfterCertainHit = [&](const QDate &exam) {
+        Scheduler scheduler({seenState(QStringLiteral("Q"), 4, Confidence::Certain, 3)}, exam);
+        return scheduler.record({QStringLiteral("Q"), true, Confidence::Certain}).dueOn;
+    };
+
+    // Ohne Termin der normale Abstand der hoechsten Stufe.
+    QCOMPARE(dueAfterCertainHit(QDate()), today.addDays(35));
+    // Reicht er ueber den Termin, kommt die Frage nach der halben Restzeit.
+    QCOMPARE(dueAfterCertainHit(today.addDays(30)), today.addDays(15));
+    // In der Schlussphase am Tag vor der Pruefung.
+    QCOMPARE(dueAfterCertainHit(today.addDays(5)), today.addDays(4));
+    // Ist morgen Pruefung, gibt es keinen frueheren Tag mehr.
+    QCOMPARE(dueAfterCertainHit(today.addDays(1)), today.addDays(35));
+    // Ein vergangener Termin zaehlt nicht.
+    QCOMPARE(dueAfterCertainHit(today.addDays(-3)), today.addDays(35));
+
+    // Ein Abstand, der vor dem Termin endet, bleibt unberuehrt.
+    Scheduler scheduler({}, today.addDays(30));
+    const QuestionState first = scheduler.record({QStringLiteral("N"), true, Confidence::Certain});
+    QCOMPARE(first.dueOn, today.addDays(7));
+    QCOMPARE(first.firstSeen, today);
+}
+
+void SchedulerTest::finalPhaseAsksWeakQuestionsFirst()
+{
+    const QStringList ids{QStringLiteral("N"), QStringLiteral("S"), QStringLiteral("W")};
+    QVector<QuestionState> states{
+        seenState(QStringLiteral("S"), 5, Confidence::Certain, 40),
+        seenState(QStringLiteral("W"), 1, Confidence::Unsure, 1),
+    };
+
+    // Ohne Termin zuerst die neue Frage, wie immer.
+    QCOMPARE(Scheduler(states).questionsByPriority(ids).first(), QStringLiteral("N"));
+
+    // Drei Tage vor der Pruefung zuerst das Wackelige, dann das Neue, das
+    // Sichere zuletzt.
+    const Scheduler finalPhase(states, QDate::currentDate().addDays(3));
+    QVERIFY(finalPhase.inFinalPhase());
+    QCOMPARE(finalPhase.questionsByPriority(ids),
+             (QVector<QString>{QStringLiteral("W"), QStringLiteral("N"), QStringLiteral("S")}));
+
+    // Drei Wochen vorher gilt noch die gewohnte Reihenfolge.
+    const Scheduler early(states, QDate::currentDate().addDays(21));
+    QVERIFY(!early.inFinalPhase());
+    QCOMPARE(early.questionsByPriority(ids).first(), QStringLiteral("N"));
+}
+
+void SchedulerTest::dailyQuotaSpreadsTheNewQuestions()
+{
+    const QDate today = QDate::currentDate();
+    const Catalog catalog = makeCatalog(100);
+    Scheduler scheduler;
+    for (int i = 1; i <= 4; ++i)
+        scheduler.record({QStringLiteral("Q%1").arg(i, 4, 10, QLatin1Char('0')), true, Confidence::Unsure});
+    const LearningStatistics statistics = computeStatistics(catalog, scheduler, today);
+    QCOMPARE(statistics.newToday, 4);
+    QCOMPARE(statistics.fresh, 96);
+
+    // Ohne Termin und nach dem Termin gibt es keinen Plan.
+    QVERIFY(!computeStudyPlan(statistics, QDate(), today).active);
+    QVERIFY(!computeStudyPlan(statistics, today.addDays(-1), today).active);
+
+    // 100 Fragen offen am Morgen, 26 Tage bis zur Pruefung: 20 Tage bis zur
+    // Schlussphase, also 5 am Tag. Die heute gelernten senken das Ziel nicht.
+    const StudyPlan plan = computeStudyPlan(statistics, today.addDays(26), today);
+    QVERIFY(plan.active);
+    QVERIFY(!plan.finalPhase);
+    QCOMPARE(plan.dailyNewTarget, 5);
+    QCOMPARE(plan.newRemainingToday(), 1);
+
+    // Wer zurueckliegt, bekommt ein hoeheres Ziel: nur noch 10 Tage bis zur
+    // Schlussphase.
+    QCOMPARE(computeStudyPlan(statistics, today.addDays(16), today).dailyNewTarget, 10);
+
+    // In der Schlussphase steht alles Offene an.
+    const StudyPlan last = computeStudyPlan(statistics, today.addDays(3), today);
+    QVERIFY(last.finalPhase);
+    QCOMPARE(last.dailyNewTarget, 100);
 }
 
 QTEST_MAIN(SchedulerTest)

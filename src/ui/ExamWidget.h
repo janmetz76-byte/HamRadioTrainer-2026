@@ -48,6 +48,9 @@ public:
     /// Continues with the learning progress read from disk.
     void setProgress(const QVector<QuestionState> &states);
 
+    /// The exam date the repetitions are planned towards; invalid for none.
+    void setExamDate(const QDate &date) { m_scheduler.setExamDate(date); }
+
     /// Forget everything that was learned so far, e.g. after the catalog was
     /// replaced by a new edition.
     void clearProgress();

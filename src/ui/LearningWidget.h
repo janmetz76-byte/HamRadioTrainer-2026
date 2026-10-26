@@ -48,6 +48,10 @@ public:
     void clearProgress();
     const Scheduler &scheduler() const { return m_scheduler; }
 
+    /// The exam date the learning is planned towards. Invalid means none: then
+    /// there is no daily quota and the spacing is the plain Leitner one.
+    void setExamDate(const QDate &date);
+
     /// The Prüfungsteile the learner prepares for, as indexes into the
     /// catalog's part list. Rounds, the part filter and the figures cover only
     /// these; empty means the whole catalog.
@@ -108,6 +112,7 @@ private:
     QLabel *m_confidenceLabel = nullptr;
     QLabel *m_legend = nullptr;
     QLabel *m_summary = nullptr;
+    QLabel *m_plan = nullptr;
     QTableWidget *m_boxes = nullptr;
     QTableWidget *m_parts = nullptr;
     QLabel *m_progress = nullptr;

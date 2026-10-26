@@ -7,6 +7,7 @@
 #include "LearningWidget.h"
 
 #include "SectionBar.h"
+#include "learning/StudyPlan.h"
 
 #include "AnswerView.h"
 
@@ -145,6 +146,32 @@ QString boxDescription(int box)
         .arg(box);
 }
 
+/// What the exam date asks of today, in one or two sentences.
+QString planText(const StudyPlan &plan)
+{
+    const QString readiness =
+        QObject::tr("Prüfungsreife: %1 Prozent der Fragen gefestigt.").arg(plan.readiness(), 0, 'f', 0);
+    if (plan.fresh == 0 && plan.newToday == 0)
+        return QObject::tr("Alle Fragen sind mindestens einmal gelernt. Jetzt wiederholen, "
+                           "was noch nicht sitzt. %1")
+            .arg(readiness);
+    if (plan.finalPhase)
+        return QObject::tr("Schlussphase vor der Prüfung: Unsicheres und Falsches kommt zuerst, "
+                           "danach die %1 noch nie gefragten Fragen. %2")
+            .arg(plan.fresh)
+            .arg(readiness);
+    if (plan.newRemainingToday() == 0)
+        return QObject::tr("Tagesziel erreicht: %1 neue Fragen heute. Wiederholen lohnt sich "
+                           "trotzdem. %2")
+            .arg(plan.newToday)
+            .arg(readiness);
+    return QObject::tr("Tagesziel: %1 neue Fragen, davon %2 geschafft. So sind bis eine Woche "
+                       "vor der Prüfung alle Fragen gelernt. %3")
+        .arg(plan.dailyNewTarget)
+        .arg(plan.newToday)
+        .arg(readiness);
+}
+
 } // namespace
 
 LearningWidget::LearningWidget(QWidget *parent)
@@ -167,6 +194,11 @@ LearningWidget::LearningWidget(QWidget *parent)
     m_summary->setWordWrap(true);
     overviewLayout->addWidget(new SectionBar(tr("Lernfortschritt"), this));
     overviewLayout->addWidget(m_summary);
+    m_plan = new QLabel(this);
+    m_plan->setObjectName(QStringLiteral("lernplan"));
+    m_plan->setWordWrap(true);
+    m_plan->hide();
+    overviewLayout->addWidget(m_plan);
 
     m_boxes = new QTableWidget(1, Scheduler::MaxBox + 1, this);
     m_boxes->setObjectName(QStringLiteral("leitnerOrdner"));
@@ -398,7 +430,13 @@ void LearningWidget::setCatalog(const Catalog *catalog, const QString &catalogPa
 
 void LearningWidget::setProgress(const QVector<QuestionState> &states)
 {
-    m_scheduler = Scheduler(states);
+    m_scheduler = Scheduler(states, m_scheduler.examDate());
+    refresh();
+}
+
+void LearningWidget::setExamDate(const QDate &date)
+{
+    m_scheduler.setExamDate(date);
     refresh();
 }
 
@@ -444,6 +482,7 @@ void LearningWidget::refresh()
     m_parts->setRowCount(0);
     if (!m_catalog) {
         m_summary->setText(tr("Kein Katalog geladen"));
+        m_plan->hide();
         return;
     }
 
@@ -463,6 +502,11 @@ void LearningWidget::refresh()
                            .arg(statistics.fresh)
                            .arg(statistics.shaky)
                            .arg(statistics.mastered));
+
+    const StudyPlan plan = computeStudyPlan(statistics, m_scheduler.examDate());
+    m_plan->setVisible(plan.active);
+    if (plan.active)
+        m_plan->setText(planText(plan));
 
     for (int box = 0; box <= Scheduler::MaxBox && box < m_boxes->columnCount(); ++box) {
         const int count = statistics.byBox.value(box);

@@ -14,6 +14,7 @@
 #include "core/ExamPlan.h"
 #include "core/LatexFormatter.h"
 #include "learning/LearningStatistics.h"
+#include "learning/StudyPlan.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -112,7 +113,7 @@ bool Trainer::openCatalog(const QString &path)
         QString archiveError;
         m_store.archive(&archiveError);
     }
-    m_scheduler = Scheduler(loaded.states);
+    m_scheduler = Scheduler(loaded.states, m_examDate);
     if (loaded.catalogChanged)
         saveProgress();
 
@@ -166,6 +167,18 @@ QVariantMap Trainer::statistics() const
     result.insert(QStringLiteral("due"), statistics.due);
     result.insert(QStringLiteral("coverage"), statistics.coverage());
     result.insert(QStringLiteral("accuracy"), statistics.accuracy());
+
+    // Was der Pruefungstermin heute verlangt. Ohne Termin "active" falsch.
+    const StudyPlan plan = computeStudyPlan(statistics, m_examDate);
+    result.insert(QStringLiteral("plan"), QVariantMap{
+        {QStringLiteral("active"), plan.active},
+        {QStringLiteral("finalPhase"), plan.finalPhase},
+        {QStringLiteral("fresh"), plan.fresh},
+        {QStringLiteral("newToday"), plan.newToday},
+        {QStringLiteral("dailyNewTarget"), plan.dailyNewTarget},
+        {QStringLiteral("newRemainingToday"), plan.newRemainingToday()},
+        {QStringLiteral("readiness"), plan.readiness()},
+    });
 
     QVariantList boxes;
     for (int count : statistics.byBox)
@@ -229,6 +242,7 @@ void Trainer::applySetup(const QString &combinationId, const QDate &examDate)
 
     m_combinationId = combination.id;
     m_examDate = examDate;
+    m_scheduler.setExamDate(examDate);
     m_setupDone = true;
 
     QSettings settings;

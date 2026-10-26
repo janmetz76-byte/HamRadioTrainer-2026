@@ -54,6 +54,12 @@ h1, h2, h3 { line-height: 1.2; margin: 0 0 .5em; }
 h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -.01em; }
 h3 { font-size: 1.15rem; }
 p { margin: 0 0 1em; }
+/* Blocksatz mit Silbentrennung. Auf dem Handy bleibt es beim Flattersatz:
+   in schmalen Spalten risse der Blocksatz grosse Luecken auf. */
+p, .steps li { hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
+@media (min-width: 700px) {
+  p, .steps li { text-align: justify; }
+}
 code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2); padding: .1em .35em; border-radius: 5px; }
 
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
@@ -202,7 +208,6 @@ dialog.lightbox button { position: fixed; top: 14px; right: 18px; background: rg
 .legal .wrap { max-width: 820px; }
 .legal h1 { font-size: 2rem; }
 .legal h2 { font-size: 1.3rem; margin-top: 1.6em; }
-.todo { background: #fff3cd; color: #5c4400; border: 1px dashed #c99a00; padding: 2px 6px; border-radius: 4px; }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
