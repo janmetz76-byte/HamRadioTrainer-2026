@@ -213,3 +213,8 @@ dialog.lightbox button { position: fixed; top: 14px; right: 18px; background: rg
 
 /* "75 · 135 min" nicht mitten im Wert umbrechen. */
 #pruefung td:last-child, #pruefung th:last-child { white-space: nowrap; }
+
+/* Der Fingerabdruck bricht auf dem Handy nur nach den Doppelpunkten um
+   (<wbr> im HTML). Blocksatz wuerde ihn auseinanderziehen. */
+.fingerprint { text-align: left; }
+.fingerprint code { overflow-wrap: normal; word-break: normal; }
