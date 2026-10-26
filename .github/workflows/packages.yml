@@ -172,7 +172,7 @@ jobs:
           $env:QT_QPA_PLATFORM = 'offscreen'
           $env:PATH = "${env:QT_ROOT_DIR}\bin;${env:PATH}"
           Get-ChildItem build -Filter 'tst_*.exe' | ForEach-Object {
-            $log = Join-Path build "$($_.BaseName).log"
+            $log = Join-Path (Resolve-Path build) "$($_.BaseName).log"
             Push-Location build
             & $_.FullName -o "$log,txt" | Out-Null
             Pop-Location
