@@ -11,6 +11,7 @@ release.pass
 /dist-win/
 /HamRadioTrainer2026-windows-*.zip
 /HamRadioTrainer2026-android-*.apk
+/hamradiotrainer-2026-*-macos-*.dmg
 /out/
 *.user
 

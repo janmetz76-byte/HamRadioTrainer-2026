@@ -46,7 +46,7 @@ QStringList CatalogLocator::searchDirectories()
         directories << QStringLiteral("assets:/catalogs");
 #endif
 #ifdef Q_OS_MACOS
-        // Inside an application bundle the catalogs live next to the bundle.
+        // Inside an application bundle the catalogs live in Contents/Resources.
         directories << QDir(applicationDirectory).filePath(QStringLiteral("../Resources/catalogs"));
 #endif
     }

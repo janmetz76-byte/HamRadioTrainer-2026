@@ -314,8 +314,43 @@ def schreibe_ico(verzeichnis: pathlib.Path) -> None:
     print("app.ico geschrieben")
 
 
+def schreibe_icns(verzeichnis: pathlib.Path) -> None:
+    """Erzeugt app.icns fuer macOS.
+
+    Der Finder und das Dock nehmen das Symbol aus dem Bundle
+    (Contents/Resources), nicht aus der Programmdatei; ein SVG liest macOS
+    dort nicht. Wie beim .ico wird jede Stufe einzeln aus dem SVG gerechnet,
+    statt eine grosse Fassung herunterzuskalieren.
+
+    Es braucht rsvg-convert und Pillow; fehlt eins davon, entsteht keine
+    Datei, und das Bundle zeigt das Standardsymbol.
+    """
+    quelle = verzeichnis / "app.svg"
+    if not quelle.exists():
+        return
+    try:
+        from PIL import Image
+        subprocess.run(["rsvg-convert", "--version"], check=True,
+                       capture_output=True)
+    except (ImportError, OSError, subprocess.CalledProcessError):
+        print("rsvg-convert oder Pillow fehlt - app.icns wurde nicht erzeugt")
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        stufen = []
+        for seite in (1024, 512, 256, 128, 64, 32, 16):
+            ziel = pathlib.Path(tmp) / ("%d.png" % seite)
+            subprocess.run(["rsvg-convert", "-w", str(seite), "-h", str(seite),
+                            str(quelle), "-o", str(ziel)], check=True)
+            stufen.append(Image.open(ziel))
+        stufen[0].save(verzeichnis / "app.icns", format="ICNS",
+                       append_images=stufen[1:])
+    print("app.icns geschrieben")
+
+
 if __name__ == "__main__":
     hier = pathlib.Path(__file__).parent
     schreiben(hier)
     print("%d Icons geschrieben" % (len(ICONS) * 2))
     schreibe_ico(hier)
+    schreibe_icns(hier)

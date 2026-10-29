@@ -187,7 +187,7 @@ dialog.lightbox p { color: #e6edf3; text-align: center; margin: 10px 0 0; }
 dialog.lightbox button { position: fixed; top: 14px; right: 18px; background: rgba(255, 255, 255, .12); color: #fff; border: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 26px; cursor: pointer; }
 
 /* ---- Downloads -------------------------------------------------------- */
-.downloads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 @media (max-width: 960px) { .downloads { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .downloads { grid-template-columns: 1fr; } }
 .download { display: flex; flex-direction: column; }

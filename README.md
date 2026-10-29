@@ -36,6 +36,7 @@ Deshalb wird hier bewusst neu aufgebaut:
 |---|---|
 | Linux (X11/Wayland) | gebaut und getestet |
 | Windows 10/11 x64 | CI-Build (GitHub Actions), Paketierung über `windeployqt` |
+| macOS 12 oder neuer | Universal-Binary (Intel und Apple Silicon) als `.dmg`, gebaut und getestet unter macOS 14 auf Intel |
 
 ## Bauen
 
@@ -83,6 +84,27 @@ Host-Qt nach `~/.local/share/hamradiotrainer-cross`, baut nach `build-win/` und
 stellt in `dist-win/` einen portablen Ordner mit allen benötigten DLLs und
 Qt-Plugins zusammen, zusätzlich als `HamRadioTrainer2026-windows-x64.zip`.
 Einzelschritte: `setup`, `build`, `deploy`.
+
+### macOS
+
+Auf einem Mac genügen die Xcode Command Line Tools; Homebrew ist nicht nötig.
+
+```sh
+xcode-select --install
+tools/macos-build.sh                   # setup, build, test und package
+```
+
+Das Skript holt CMake, Ninja und Qt in ein eigenes Verzeichnis unter
+`~/.local/share/hamradiotrainer-macos`, baut ein Universal-Binary für Intel und
+Apple Silicon nach `build-macos/` und legt
+`hamradiotrainer-2026-<version>-macos-universal.dmg` ins Quellverzeichnis.
+`macdeployqt` packt Qt, Kataloge und Symbol in das Bundle und signiert es ad
+hoc. Einzelschritte: `setup`, `build`, `test`, `package`.
+
+Die App ist nicht von Apple beglaubigt (Notarisierung braucht ein
+kostenpflichtiges Entwicklerkonto). Beim ersten Start öffnet man sie daher per
+Rechtsklick → „Öffnen“; ab macOS 15 über Systemeinstellungen → Datenschutz &
+Sicherheit → „Dennoch öffnen“.
 
 ### Android-App
 
@@ -696,6 +718,7 @@ gefundenen.
 | Ziel | Ergebnis |
 |---|---|
 | Windows | **eine `.exe`** (NSIS, mitgelieferte Qt-Laufzeit) |
+| macOS | `.dmg` mit der App zum Ziehen nach „Programme“ |
 | Debian, Ubuntu und Verwandte | `.deb` |
 | Fedora, RHEL, CentOS Stream | `.rpm` |
 | openSUSE, SuSE | `.rpm` läuft meist, ist dort aber nicht offiziell unterstützt |

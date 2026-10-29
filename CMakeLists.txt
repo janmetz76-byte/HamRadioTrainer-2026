@@ -201,7 +201,27 @@ set_target_properties(HamRadioTrainer2026 PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "HamRadioTrainer 2026"
     MACOSX_BUNDLE_GUI_IDENTIFIER "org.hamradiotrainer.HamRadioTrainer2026"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_ICON_FILE "app.icns")
+
+# macOS: Das Bundle traegt Symbol und Kataloge in Contents/Resources, wo
+# CatalogLocator sie sucht. Kopiert wird bei jedem Bau, damit schon das
+# Bundle im Build-Verzeichnis ohne Quellbaum laeuft.
+if(APPLE AND NOT IOS)
+    target_sources(HamRadioTrainer2026 PRIVATE resources/icons/app.icns)
+    set_source_files_properties(resources/icons/app.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    add_custom_command(TARGET HamRadioTrainer2026 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
+                "$<TARGET_BUNDLE_CONTENT_DIR:HamRadioTrainer2026>/Resources/catalogs"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/data/catalogs"
+                "$<TARGET_BUNDLE_CONTENT_DIR:HamRadioTrainer2026>/Resources/catalogs"
+        COMMAND ${CMAKE_COMMAND} -E copy
+                "${CMAKE_CURRENT_SOURCE_DIR}/schema/catalog.xsd"
+                "$<TARGET_BUNDLE_CONTENT_DIR:HamRadioTrainer2026>/Resources/catalogs/schema/catalog.xsd"
+        COMMENT "Fragenkataloge in das App-Bundle kopieren")
+endif()
 
 # Android: Die Kataloge und ihre Bilder reisen als Assets in der APK mit und
 # werden unter "assets:/catalogs" gefunden (CatalogLocator). Kopiert wird bei
@@ -238,7 +258,11 @@ endif()
 add_executable(hrt-catalog-tool tools/catalog-tool.cpp)
 target_link_libraries(hrt-catalog-tool PRIVATE hrt_core)
 set_target_properties(hrt-catalog-tool PROPERTIES OUTPUT_NAME "hrt-catalog-tool")
-install(TARGETS hrt-catalog-tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# Auf dem Mac gehoert ins Disk-Image nur das App-Bundle; die
+# Kommandozeilenwerkzeuge liegen dort im Build-Verzeichnis bereit.
+if(NOT APPLE)
+    install(TARGETS hrt-catalog-tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 # Imports the Bundesnetzagentur question catalog (DL-DE-BY-2.0).
 #
@@ -249,7 +273,9 @@ install(TARGETS hrt-catalog-tool RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # command line, but the program does not need it at runtime.
 add_executable(hrt-catalog-import tools/catalog-import.cpp)
 target_link_libraries(hrt-catalog-import PRIVATE hrt_core)
-install(TARGETS hrt-catalog-import RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(NOT APPLE)
+    install(TARGETS hrt-catalog-import RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 if(Qt6Test_FOUND AND NOT ANDROID)
     enable_testing()
@@ -338,15 +364,22 @@ install(TARGETS HamRadioTrainer2026
 # "catalog-manifest.json" gehoert dazu: es nennt den Sollstand der
 # ausgelieferten Kataloge. Ohne die Datei kann das installierte Programm nicht
 # sagen, ob ein Katalog noch der ausgelieferte ist.
-install(DIRECTORY data/catalogs
-    DESTINATION ${HRT_CATALOG_INSTALL_DIR}
-    FILES_MATCHING PATTERN "*.xml" PATTERN "catalog-manifest.json")
-install(DIRECTORY data/catalogs/images
-    DESTINATION ${HRT_CATALOG_INSTALL_DIR})
-install(FILES schema/catalog.xsd
-    DESTINATION ${HRT_CATALOG_INSTALL_DIR}/schema)
-install(FILES LICENSE README.md
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/hamradiotrainer-2026)
+#
+# Auf dem Mac stecken die Kataloge schon im Bundle (siehe oben); Lizenz und
+# Liesmich liegen im Disk-Image neben der App.
+if(APPLE)
+    install(FILES LICENSE README.md DESTINATION .)
+else()
+    install(DIRECTORY data/catalogs
+        DESTINATION ${HRT_CATALOG_INSTALL_DIR}
+        FILES_MATCHING PATTERN "*.xml" PATTERN "catalog-manifest.json")
+    install(DIRECTORY data/catalogs/images
+        DESTINATION ${HRT_CATALOG_INSTALL_DIR})
+    install(FILES schema/catalog.xsd
+        DESTINATION ${HRT_CATALOG_INSTALL_DIR}/schema)
+    install(FILES LICENSE README.md
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/hamradiotrainer-2026)
+endif()
 
 # Desktop entry, icon and metadata only where they serve a purpose.
 if(UNIX AND NOT APPLE)
@@ -382,6 +415,24 @@ if(WIN32 AND NOT CMAKE_CROSSCOMPILING)
         # windeployqt legte nur vc_redist.x64.exe bei, das niemand aufruft.
         # Die Laufzeit-DLLs kommen stattdessen direkt neben das Programm.
         DEPLOY_TOOL_OPTIONS --no-compiler-runtime)
+    install(SCRIPT ${deploy_script})
+endif()
+
+# macOS: macdeployqt legt die Qt-Frameworks und Plugins in das Bundle. Danach
+# muss das Bundle neu signiert werden - ad hoc, ohne Apple-Zertifikat. Ohne
+# Signatur startet es auf Apple Silicon gar nicht.
+#
+# Beim Installieren entfernt CMake den RPATH des Build-Baums. Ohne eigenen
+# RPATH findet das Programm die Frameworks im Bundle nicht, und macdeployqt
+# kann "@rpath/QtGui.framework" nicht aufloesen und kopiert nur QtCore.
+if(APPLE AND NOT IOS)
+    set_target_properties(HamRadioTrainer2026 PROPERTIES
+        INSTALL_RPATH "@executable_path/../Frameworks")
+    qt_generate_deploy_app_script(
+        TARGET HamRadioTrainer2026
+        OUTPUT_SCRIPT deploy_script
+        NO_TRANSLATIONS
+        DEPLOY_TOOL_OPTIONS -codesign=- "-libpath=${QT6_INSTALL_PREFIX}/${QT6_INSTALL_LIBS}")
     install(SCRIPT ${deploy_script})
 endif()
 
@@ -447,6 +498,24 @@ if(WIN32)
     set(CPACK_NSIS_MUI_SHORTCUT_ICON
         "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "${CPACK_PACKAGE_NAME}.ico")
+elseif(APPLE)
+    # Ein Disk-Image, aus dem man die App in "Programme" zieht.
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_DMG_VOLUME_NAME "HamRadioTrainer 2026")
+    set(CPACK_DMG_FORMAT "UDBZ")
+    # Sonst baut CPack die LICENSE als Lizenzvereinbarung ein, die man vor
+    # dem Oeffnen bestaetigen muss. Die GPL verlangt keine Zustimmung zur
+    # Nutzung, und ohne Bildschirm (Skripte, CI) bricht hdiutil attach ab.
+    # Die LICENSE liegt im Image ohnehin neben der App.
+    set(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE OFF)
+    # Ein Universal-Binary laeuft auf Intel und Apple Silicon; der Dateiname
+    # soll nicht nur die Architektur des Bau-Rechners nennen.
+    if(CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+        set(hrt_macos_arch "universal")
+    else()
+        set(hrt_macos_arch "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-macos-${hrt_macos_arch}")
 else()
     set(CPACK_GENERATOR "DEB;RPM")
 
